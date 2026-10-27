@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createState, migrateState, evolve, visibleTask, money } from '../lib/model.js';
-import { SPOTS, shortestPath, matchRoute, pointAlong } from '../lib/campus.js';
-import { alongTasks, trackingSnapshot, tourSnapshot } from '../lib/experience.js';
+import { createState, migrateState, evolve, visibleTask, money, walletSummary } from '../lib/model.js';
+import { SPOTS, shortestPath, matchRoute, pointAlong, customPoint, pathThrough, mapMarkup, spotKey } from '../lib/campus.js';
+import { alongTasks, trackingSnapshot } from '../lib/experience.js';
 const now=Date.now(),step=(s,c,p={})=>evolve(s,c,p,now),as=(s,actor)=>step(s,'switch',{actor});
 function picked(){let s=as(createState(now),'zhou');s=step(s,'accept',{id:'north-parcel',from:'north'});s=step(s,'start',{id:'north-parcel'});return step(s,'pickup',{id:'north-parcel'});}
 test('顺路计算：沿原路0绕行；反向不伪装完全顺路；距离守恒',()=>{
@@ -50,13 +50,13 @@ test('位置与放置凭证仅双方可见；前端演示不替代后端授权',
 });
 test('配送位置演示不替用户改变任务或采购/结算状态',()=>{
   const s=picked(),t=s.tasks.find(t=>t.id==='north-parcel'),before=JSON.stringify(t);
-  const snap=trackingSnapshot(t,now+25000);assert.equal(snap.fraction,1);assert.equal(t.status,'progress');assert.equal(t.settlement,null);assert.equal(JSON.stringify(t),before);
-  assert.equal(tourSnapshot(24000).step,3);assert.deepEqual(pointAlong(['north','center'],0),{x:SPOTS.north.x,y:SPOTS.north.y});
+  const snap=trackingSnapshot(t,now+30*60000);assert.equal(snap.fraction,1);assert.equal(t.status,'progress');assert.equal(t.settlement,null);assert.equal(JSON.stringify(t),before);
+  assert.ok(trackingSnapshot(t,now+25000).fraction<.2);assert.deepEqual(pointAlong(['north','center'],0),{x:SPOTS.north.x,y:SPOTS.north.y});
 });
 test('升级保留已有用户、任务金额及取件状态，不把当面交接静默改为放置',()=>{
   let old=createState(now);delete old.schemaVersion;old.tasks=old.tasks.filter(t=>!t.id.startsWith('north-'));old.tasks[0].reward=123;
   Object.values(old.users).forEach(u=>delete u.runnerEnabled);old.tasks.forEach(t=>{delete t.handoff;delete t.dropConsent;delete t.pickupSpot;delete t.dropoffSpot;});
-  const next=migrateState(old,now);assert.equal(next.tasks[0].reward,123);assert.equal(next.tasks[0].handoff,'meet');assert.equal(next.tasks[0].dropConsent,false);assert.equal(next.users.visitor.runnerEnabled,false);assert.equal(next.schemaVersion,2);assert.equal(migrateState(next,now),next);
+  const next=migrateState(old,now);assert.equal(next.tasks[0].reward,123);assert.equal(next.tasks[0].handoff,'meet');assert.equal(next.tasks[0].dropConsent,false);assert.equal(next.users.visitor.runnerEnabled,false);assert.equal(next.schemaVersion,3);assert.equal(migrateState(next,now),next);
 });
 test('采购待确认时状态说明真实，取消待处理时位置演示暂停',()=>{
   let s=as(createState(now),'zhou');s=step(s,'accept',{id:'lunch'});s=step(s,'start',{id:'lunch'});s=step(s,'quote',{id:'lunch',item:'鸡腿饭',amount:'26'});
@@ -68,4 +68,39 @@ test('普通取件已在手时也不能直接取消退款，必须交代物品�
   const s=picked();assert.throws(()=>step(s,'requestCancel',{id:'north-parcel',reason:'临时取消'}),/已取件/);
   const next=step(s,'dispute',{id:'north-parcel',reason:'无法继续配送',goods:'物品在接单者手中，尚未交接，报酬仅模拟预付'});
   assert.equal(next.tasks.find(t=>t.id==='north-parcel').settlement,null);
+});
+
+test('自定义公共点可以发布并保存；超出示意范围或伪装无人交接架被拒绝',()=>{
+  const pin=customPoint({x:45,y:340,name:'林间教学楼 · 公共门厅'}),base={category:'parcel',title:'送到林间教学楼',description:'公共区域交接',pickup:SPOTS.north.name,dropoff:pin.name,dropoffPoint:pin,item:'小包裹',reward:'3',deadline:now+3600000};
+  let s=as(createState(now),'lin');s=step(s,'create',base);const t=s.tasks[0];assert.deepEqual(t.dropoffPoint,pin);assert.equal(t.dropoffSpot,null);assert.equal(JSON.parse(JSON.stringify(s)).tasks[0].dropoffPoint.x,45);
+  assert.throws(()=>step(s,'create',{...base,dropoffPoint:{...pin,x:999}}),/自定义落点/);
+  assert.throws(()=>step(s,'create',{...base,handoff:'safe_drop',dropConsent:true}),/指定交接架/);
+  assert.equal(customPoint({...pin,x:NaN}),null);assert.equal(customPoint({...pin,name:'x'.repeat(41)}),null);
+});
+test('途经C保留在匹配路线中；自定义任务地图安全显示，反方向绕行真实',()=>{
+  const pin=customPoint({x:45,y:340,name:'林间教学楼 <测试>'}),t={pickupPoint:pin,dropoffSpot:'dorm3'};
+  const direct=pathThrough('north','dorm3'),via=pathThrough('north',pin,'dorm3'),m=matchRoute(t,'north','dorm3',pin);
+  assert.ok(via.metres>direct.metres);assert.ok(Math.abs(m.extra)<1e-8);assert.ok(m.nodes.some(p=>spotKey(p)===spotKey(pin)));
+  assert.ok(matchRoute({pickupSpot:'north',dropoffSpot:'dorm3'},'dorm3','north').extra>0);
+  const markup=mapMarkup({tasks:[t],route:m.nodes,pickup:pin});assert.ok(markup.includes('林间教学楼 &lt;测试&gt;'));assert.ok(!markup.includes('[object Object]'));
+});
+test('自定义起点接单即出发，慢速位置延续；取件和送达不由时间替代',()=>{
+  const pin=customPoint({x:45,y:340,name:'林间教学楼'});let s=as(createState(now),'zhou');s=step(s,'accept',{id:'north-parcel',from:pin,to:'dorm3',depart:true});
+  const t=s.tasks.find(t=>t.id==='north-parcel');assert.equal(t.status,'progress');assert.equal(t.startedAt,now);assert.deepEqual(t.runnerStartSpot,pin);
+  const a=trackingSnapshot(t,now),b=trackingSnapshot(t,now+10000),c=trackingSnapshot(JSON.parse(JSON.stringify(t)),now+20000);
+  assert.ok(b.fraction>0&&b.fraction<.1);assert.ok(c.fraction>b.fraction);assert.notDeepEqual(a.point,b.point);assert.equal(t.pickedUpAt,null);assert.equal(t.settlement,null);
+  assert.equal(visibleTask(as(s,'visitor'),t).runnerApproach,undefined);
+});
+test('全校需求能发现超出绕行偏好的冷门位置，仍显示真实绕行',()=>{
+  let s=as(createState(now),'zhou');const pin=customPoint({x:30,y:385,name:'林间教学楼'});s.tasks.push({...s.tasks.find(t=>t.id==='north-parcel'),id:'cold',pickupPoint:pin});
+  const ui={from:'north',to:'dorm3',detour:200,category:'all',query:''};
+  assert.ok(!alongTasks(s,ui).some(r=>r.task.id==='cold'));assert.ok(alongTasks(s,{...ui,scope:'all'}).some(r=>r.task.id==='cold'&&r.match.extra>200));
+});
+test('钱包：提交送达仍待结算，确认后收款仅记一次，代买返还与收入分开',()=>{
+  let s=step(picked(),'deliver',{id:'north-parcel',proof:'sample',spot:'dorm3',note:'已通知'});
+  s.tasks=s.tasks.filter(t=>t.status!=='completed');
+  let w=walletSummary(s,'zhou');assert.equal(w.total,0);assert.equal(w.pendingReward,200);
+  s=step(as(s,'lin'),'complete',{id:'north-parcel'});w=walletSummary(s,'zhou');assert.equal(w.total,200);assert.equal(w.income,200);assert.equal(w.reimbursement,0);assert.equal(w.pendingReward,0);
+  const t=s.tasks.find(t=>t.id==='north-parcel');s.tasks.push({...t,id:'bought',buy:true,reward:500,settlement:{expense:2600,runnerPayout:3100,refund:400,at:now}});
+  w=walletSummary(s,'zhou');assert.equal(w.total,3300);assert.equal(w.income,700);assert.equal(w.reimbursement,2600);assert.equal(w.total,w.income+w.reimbursement);assert.equal(walletSummary(s,'visitor').total,0);
 });

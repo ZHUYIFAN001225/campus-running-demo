@@ -1,7 +1,7 @@
-import { SCHOOL, CATEGORIES, STATUS, AUTH, money, createState, migrateState, reconcile, userOf, certified, statusOf, creditOf, reviewAverage, visibleTask, evolve } from './lib/model.js';
+import { SCHOOL, CATEGORIES, STATUS, AUTH, money, createState, migrateState, reconcile, userOf, certified, statusOf, creditOf, reviewAverage, visibleTask, evolve, walletSummary } from './lib/model.js';
 import { icon, logo, campusArt } from './lib/icons.js';
-import { SPOTS, identifySpot, shortestPath, taskSpots, matchRoute, mapMarkup, formatDistance, walkMinutes } from './lib/campus.js';
-import { home as experienceHome, routeCard, stepLabel, trackingSnapshot, tourSnapshot } from './lib/experience.js';
+import { SPOTS, identifySpot, shortestPath, taskSpots, matchRoute, mapMarkup, formatDistance, walkMinutes, spotOf, spotKey, customPoint } from './lib/campus.js';
+import { home as experienceHome, routeCard, stepLabel, trackingSnapshot } from './lib/experience.js';
 
 const KEY = 'tonglu-campus-v1';
 const DRAFT_KEY = 'tonglu-draft-v1';
@@ -15,7 +15,7 @@ try {
 } catch { state = createState(); storageWarning = '本地演示记录无法读取，已恢复初始数据。'; }
 const normalized = reconcile(migrateState(state));
 if (normalized !== state) { state = normalized; persist(); }
-const ui = { page: 'square', mode: 'request', from: 'north', to: 'dorm3', detour: 400, hub: null, category: 'all', query: '', sort: 'new', mine: 'published', status: 'all', dialog: null, draft: null, rating: 5, afterAuth: null, tracking: null, forceDetails: false };
+const ui = { page: 'square', mode: 'request', from: 'north', to: 'dorm3', via: null, scope: 'along', detour: 400, hub: null, category: 'all', query: '', sort: 'new', mine: 'published', status: 'all', dialog: null, draft: null, rating: 5, afterAuth: null, tracking: null, forceDetails: false };
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const btn = (label, action, cls = 'primary', attrs = '') => `<button type="button" class="btn ${cls}" data-action="${action}" ${attrs}>${label}</button>`;
 const textBtn = (label, action, attrs = '') => `<button type="button" class="text-btn" data-action="${action}" ${attrs}>${label}</button>`;
@@ -58,7 +58,7 @@ function run(command, data = {}, message = '') {
 }
 function shellContent() {
   const u = userOf(state), n = unread();
-  const links = [['square', 'grid', '首页'], ['mine', 'tasks', '任务'], ['messages', 'chat', '消息'], ['me', 'user', '我的']];
+  const links = [['square', 'grid', '首页'], ['mine', 'tasks', '任务'], ['messages', 'chat', '消息'], ['wallet', 'bag', '钱包'], ['me', 'user', '我的']];
   const brand = `<span class="brand">${logo}<span class="brand-name">同路<small class="brand-sub">CAMPUS TOGETHER</small></span></span>`;
   const nav = links.map(([id, glyph, label]) => `<button class="nav-link ${ui.page === id ? 'active' : ''}" data-action="nav" data-page="${id}" ${ui.page === id ? 'aria-current="page"' : ''}>${icon(glyph)}${label}${id === 'messages' && n ? `<span class="count-dot">${n}</span>` : ''}</button>`).join('');
   return `<aside class="sidebar"><a href="#square" aria-label="同路首页">${brand}</a><p class="nav-label">YOUR CAMPUS, CONNECTED</p><nav class="nav-list" aria-label="主导航">${nav}</nav><div class="sidebar-bottom"><div class="side-note"><strong>小事有人帮，顺路有回响。</strong>在同一个校园，<br>把每一段顺路变成一点善意。</div>${btn(`${icon('plus')}发布任务`, 'publish', 'primary full')}</div></aside>
@@ -76,6 +76,7 @@ function pageContent() {
   if (ui.page === 'mine') return minePage();
   if (ui.page === 'messages') return messagesPage();
   if (ui.page === 'me') return profilePage();
+  if (ui.page === 'wallet') return walletPage();
   return squarePage();
 }
 function squarePage() { return experienceHome({state,ui,icon,btn,esc,footer,taskCard}); }
@@ -115,7 +116,7 @@ function openDialog(title, body, info = {}) {
   const already = modal.open;
   ui.dialog = info;
   ui.tracking = null;
-  modal.classList.toggle('tracking-modal',['tracking','tour'].includes(info.type));
+  modal.classList.toggle('tracking-modal',info.type==='tracking');
   modal.innerHTML = `<div class="modal-head"><h2 id="modal-title">${title}</h2><button class="icon-btn" data-action="close" aria-label="关闭">${icon('close')}</button></div><div class="modal-body">${body}<div class="form-error error-hidden" role="alert"></div></div>`;
   if (!already) { modal.showModal(); document.body.style.overflow = 'hidden'; }
   modal.scrollTop = 0;
@@ -132,7 +133,7 @@ function showTask(id, updateHash = true) {
   const t = visibleTask(state, raw), u = userOf(state), owner = userOf(state, t.owner), runner = t.runner ? userOf(state, t.runner) : null;
   const party = [t.owner, t.runner].includes(u.id), guest = !certified(u) && !party, st = statusOf(t);
   if (party && ['accepted','progress','delivered'].includes(st) && !ui.forceDetails) return showTracking(id,updateHash);
-  const locationText = text => identifySpot(text)?esc(SPOTS[identifySpot(text)].name):(guest?esc(text.split(' · ')[0])+'附近':esc(text));
+  const locationText = text => esc(text);
   let action = '';
   const commandBtn = (label, command, cls = 'primary') => btn(label, 'command', cls, `data-command="${command}" data-id="${esc(id)}"`);
   if (st === 'open') {
@@ -169,7 +170,7 @@ function showTask(id, updateHash = true) {
     modal.querySelectorAll('[data-action="cancel-form"], [data-action="change-form"]').forEach(el => el.remove());
   }
   if (st==='open') {
-    const {pickup,dropoff}=taskSpots(t), match=ui.mode==='runner'&&t.owner!==u.id?matchRoute(t,ui.from,ui.to):null;
+    const {pickup,dropoff}=taskSpots(t), match=ui.mode==='runner'&&t.owner!==u.id?matchRoute(t,ui.from,ui.to,ui.via):null;
     const block=document.createElement('section'); block.className='task-route-preview';
     block.innerHTML=mapMarkup({route:match?.nodes||shortestPath(pickup,dropoff).nodes,pickup,dropoff})+(match?`<div class="route-preview-metrics"><span>到取件点 <b>${formatDistance(match.toPickup)}</b></span><span>额外绕行 <b>${formatDistance(match.extra)}</b></span><span>约多走 <b>${match.extra===0?0:walkMinutes(match.extra)} 分钟</b></span></div>`:'');
     modal.querySelector('.detail-top').after(block);
@@ -201,11 +202,11 @@ function showTracking(id,updateHash=true) {
       action=t.purchase?.status==='pending'?`${notice('报价待发布者确认。请勿先购买，可切换演示身份处理。')}${btn('撤回并重新报价','withdraw-quote','secondary full',`data-id="${id}"`)}`:
         t.purchase?.status==='approved'?btn('按授权模拟购买，提交凭证','purchase','primary full',`data-id="${id}"`):btn('提交商品与报价，等待确认','quote','primary full',`data-id="${id}"`);
     } else action=t.pickedUpAt?btn(t.handoff==='safe_drop'?'到达后，提交放置凭证':'到达后，记录当面交接','deliver-form','primary full',`data-id="${id}"`):command('确认已取到物品','pickup');
-  } else if(t.status==='delivered') action=`${notice(t.handoff==='safe_drop'?'已按授权放置并通知发布者，你可以离开，无需原地等候。报酬待对方确认后模拟结算。':'已记录交接，无需原地等待对方操作手机。模拟报酬待对方确认结算。')}${btn('继续找沿途任务','continue-runner','secondary full')}`;
-  const fullPath=shortestPath(t.runnerStartSpot||'north',pickup).nodes.concat(shortestPath(pickup,dropoff).nodes.slice(1));
+  } else if(t.status==='delivered') action=`${notice(t.handoff==='safe_drop'?'已按授权放置并通知发布者，你可以离开，无需原地等候。报酬待对方确认后模拟结算。':'已记录交接，无需原地等待对方操作手机。模拟报酬待对方确认结算。')}${btn('查看待结算报酬','open-wallet','secondary full')}${btn('继续找沿途任务','continue-runner','secondary full')}`;
+  const fullPath=(t.runnerApproach||shortestPath(t.runnerStartSpot||'north',pickup).nodes).concat((t.runnerDelivery||shortestPath(pickup,dropoff).nodes).slice(1));
   const proof=t.deliveryProof?`<section class="delivery-proof"><div class="proof-heading"><strong>送达凭证 · ${esc(t.dropoff)}</strong><span>${date(t.deliveryProof.at)}</span></div><img src="./assets/handoff-sample.png" alt="虚构演示照片：无个人信息的纸箱放在公共交接架上" /><p>AI 生成照片样例 · 非真实拍摄 · ${esc(t.deliveryNote)}</p></section>`:'';
   const handoffText=t.handoff==='safe_drop'?'发布前已授权：放置到指定公共交接架，通知后可离开。请尽量在提示的自取时间内取走；超时不自动免责。':'交接方式：当面交接。未获放置授权，不能擅自放下离开。';
-  openDialog(isOwner?'我的任务进度':'这段顺路的进度',`<div class="tracking-heading"><span class="live-label"><i></i>模拟位置 · 非 GPS</span><h3 data-track-title>${esc(snap.title)}</h3><p><span data-track-eta>${snap.eta}</span> · ${esc(t.title)}</p></div>${proof||mapMarkup({route:fullPath,pickup,dropoff,marker:snap.point,label:'任务配送示意地图，仅任务双方可查看'})}${trackingSteps(snap.step)}<div class="tracking-person">${avatar(r)}<div><strong>${esc(r.short)}同学 <span>同校认证 · 接单身份已开通</span></strong><p>从 ${esc(SPOTS[pickup]?.short||'取件点')} 到 ${esc(SPOTS[dropoff]?.short||'交接点')}</p></div>${textBtn('联系','chat',`data-id="${id}"`)}</div><div class="handoff-brief">${icon(t.handoff==='safe_drop'?'box':'user','sm')}<p>${handoffText}${t.pickupBy?`<br>建议自取时间：${date(t.pickupBy)} 前（演示参数）`:''}</p></div><div class="tracking-action">${action}</div><div class="tracking-links">${textBtn('约定与费用','task-details',`data-id="${id}"`)}${textBtn(t.dispute?.status==='pending'?'查看问题进度':'遇到问题','dispute-form',`data-id="${id}"`)}${textBtn('切换演示身份','demo',`data-return="${id}"`)}</div><p class="tracking-hint">地图只演示当前位置；确认取件、采购授权、送达及结算仍须对应一方操作。</p>`,{type:'tracking',id});
+  openDialog(isOwner?'我的任务进度':'这段顺路的进度',`<div class="tracking-heading"><span class="live-label"><i></i>模拟位置 · 非 GPS</span><h3 data-track-title>${esc(snap.title)}</h3><p><span data-track-eta>${snap.eta}</span> · ${esc(t.title)}</p></div>${proof||mapMarkup({route:fullPath,pickup,dropoff,marker:snap.point,label:'任务配送示意地图，仅任务双方可查看'})}${trackingSteps(snap.step)}<div class="tracking-person">${avatar(r)}<div><strong>${esc(r.short)}同学 <span>同校认证 · 接单身份已开通</span></strong><p>从 ${esc(spotOf(pickup)?.short||'取件点')} 到 ${esc(spotOf(dropoff)?.short||'交接点')}</p></div>${textBtn('联系','chat',`data-id="${id}"`)}</div><div class="handoff-brief">${icon(t.handoff==='safe_drop'?'box':'user','sm')}<p>${handoffText}${t.pickupBy?`<br>建议自取时间：${date(t.pickupBy)} 前（演示参数）`:''}</p></div><div class="tracking-action">${action}</div><div class="tracking-links">${textBtn('约定与费用','task-details',`data-id="${id}"`)}${textBtn(t.dispute?.status==='pending'?'查看问题进度':'遇到问题','dispute-form',`data-id="${id}"`)}${textBtn('切换演示身份','demo',`data-return="${id}"`)}</div><p class="tracking-hint">模拟位置约按步行速度持续更新，关闭重开会延续进度；不是真实 GPS。取件、采购、送达和结算仍需本人确认。</p>`,{type:'tracking',id});
   modal.querySelector('.tracking-person strong span').textContent=isOwner?'同校认证 · 接单身份已开通':'任务发布者 · 同校认证';
   const who=document.createElement('span');who.className='tracking-who';who.textContent=`${isOwner?'接单者':'发布者'}：${r.short}同学`;
   modal.querySelector('.tracking-heading').append(who);
@@ -217,27 +218,13 @@ function showTracking(id,updateHash=true) {
   ui.tracking={id,tour:false};
 }
 function trackingSteps(step) { return `<ol class="tracking-steps">${['已接单','已取件','配送中','已送达'].map((label,i)=>`<li data-track-step="${i}" class="${i<=step?'done':''}"><i>${i<step?'✓':i+1}</i><span>${label}</span></li>`).join('')}</ol>`; }
-function showTour() {
-  const s=tourSnapshot(0);
-  openDialog('24 秒，看看一段顺路怎么完成',`<div class="tracking-heading"><span class="live-label"><i></i>独立剧情演示 · 不改你的任务</span><h3 data-track-title>${s.title}</h3><p><span data-track-eta>${s.eta}</span> · 周同学正在帮林同学取包裹</p></div>${mapMarkup({route:s.nodes,pickup:'west',dropoff:'dorm3',marker:s.point})}${trackingSteps(s.step)}<div class="tour-progress"><i data-tour-progress></i></div><div class="tour-controls">${btn('暂停演示','tour-toggle','secondary small')}${btn('下一阶段','tour-next','secondary small')}${btn('重新播放','play-tour','ghost small')}</div><div class="handoff-brief">${icon('box','sm')}<p>事先授权三号楼下交接架自取。送达后记录照片、地点和时间，通知发布者，接单者无需原地等待。</p></div><section class="delivery-proof tour-proof" data-tour-proof hidden><strong>已放到三号楼下交接架 · 已通知林同学</strong><img src="./assets/handoff-sample.png" alt="AI 生成的虚构公共点放置照片样例"/><p>照片为 AI 生成样例；不代表真实包裹或真实交接架。</p></section><p class="tracking-hint">位置、时间和人物均为模拟。演示不会自动替真实任务确认取件或结算。</p>`,{type:'tour'});
-  ui.tracking={tour:true,elapsed:0,last:performance.now(),paused:window.matchMedia('(prefers-reduced-motion: reduce)').matches};
-  if(ui.tracking.paused) modal.querySelector('[data-action="tour-toggle"]').textContent='继续演示';
-}
 function animateTracking(now) {
-  const tr=ui.tracking;
-  if(tr&&modal.open&&['tracking','tour'].includes(ui.dialog?.type)) {
-    let s;
-    if(tr.tour) {
-      if(!tr.paused) tr.elapsed=Math.min(24000,tr.elapsed+Math.max(0,Math.min(200,now-tr.last)));
-      tr.last=now; s=tourSnapshot(tr.elapsed);
-      const proof=modal.querySelector('[data-tour-proof]'); if(proof) proof.hidden=tr.elapsed<24000;
-      const bar=modal.querySelector('[data-tour-progress]'); if(bar) bar.style.width=`${100*s.fraction}%`;
-      if(tr.elapsed>=24000) {tr.paused=true;const b=modal.querySelector('[data-action="tour-toggle"]');if(b)b.textContent='已完成';}
-    } else { const t=getTask(tr.id); if(t)s=trackingSnapshot(t,Date.now(),state.actor); }
-    if(s) {
-      const g=modal.querySelector('[data-map-marker]');
-      const name=tr.tour?'周':state.users[getTask(tr.id)?.runner]?.short||'同';
-      if(g) g.innerHTML=`<circle cx="${s.point.x}" cy="${s.point.y}" r="21" fill="#35442e" opacity=".14"/><circle cx="${s.point.x}" cy="${s.point.y}" r="12" fill="#35442e" stroke="white" stroke-width="3"/><text x="${s.point.x}" y="${s.point.y+4}" text-anchor="middle" class="map-person-letter" fill="white">${esc(name)}</text><rect x="${s.point.x-30}" y="${s.point.y-35}" width="60" height="18" rx="8" fill="#35442e"/><text x="${s.point.x}" y="${s.point.y-22}" text-anchor="middle" class="map-person-label" fill="white">${esc(name)}同学</text>`;
+  if(!animateTracking.last||now-animateTracking.last>=200) {
+    animateTracking.last=now;
+    const tr=ui.tracking,t=tr&&getTask(tr.id);
+    if(t&&modal.open&&ui.dialog?.type==='tracking') {
+      const s=trackingSnapshot(t,Date.now(),state.actor),g=modal.querySelector('[data-map-marker]'),name=state.users[t.runner]?.short||'同';
+      if(g)g.innerHTML=`<circle cx="${s.point.x}" cy="${s.point.y}" r="21" fill="#35442e" opacity=".14"/><circle cx="${s.point.x}" cy="${s.point.y}" r="12" fill="#35442e" stroke="white" stroke-width="3"/><text x="${s.point.x}" y="${s.point.y+4}" text-anchor="middle" class="map-person-letter" fill="white">${esc(name)}</text><rect x="${s.point.x-30}" y="${s.point.y-35}" width="60" height="18" rx="8" fill="#35442e"/><text x="${s.point.x}" y="${s.point.y-22}" text-anchor="middle" class="map-person-label" fill="white">${esc(name)}同学</text>`;
       const title=modal.querySelector('[data-track-title]'),eta=modal.querySelector('[data-track-eta]');
       if(title&&title.textContent!==s.title)title.textContent=s.title;
       if(eta&&eta.textContent!==s.eta)eta.textContent=s.eta;
@@ -306,6 +293,10 @@ function showCredit() {
   const u = userOf(state), done = state.tasks.filter(t => t.status === 'completed' && t.runner === u.id);
   openDialog('信用与履约明细', `<div class="credit-value">${creditOf(state, u.id)}<span>/ 100 · 演示分</span></div><div class="credit-progress"><i style="width:${creditOf(state, u.id)}%"></i></div>${notice('信用由初始演示分 + 完成跑腿次数 × 2 得到，封顶 100。同一任务只记一次；不因单次举报直接扣分。')}<div class="timeline"><div class="timeline-item">初始演示信用：${u.baseCredit} 分<time>样例数据，不代表真实历史</time></div>${done.map(t => `<div class="timeline-item">${esc(t.title)} · 履约 +2<time>${date(t.settlement.at)}</time></div>`).join('')}</div><p class="seed-note">${done.length} 次完成履约 · 收到评价 ${reviewAverage(state, u.id)}。新用户的演示初始分仅用于理解交互，不是安全担保。</p>`, { type: 'credit' });
 }
+function walletPage() {
+  const w=walletSummary(state),u=userOf(state),row=(t,pending=false)=>`<button class="wallet-record" data-action="detail" data-id="${esc(t.id)}"><div><strong>${esc(t.title)}</strong><small>${pending?esc(stepLabel(t)):date(t.settlement.at)}${t.buy?' · 含垫付返还':''}</small></div><b>${pending?'待结算 ':'+'}¥${money(pending?t.reward:t.settlement.runnerPayout)}</b></button>`;
+  return `<div class="simple-heading"><h1>我的钱包</h1><p>${esc(u.short)}同学 · 每一笔顺路，都有记录。</p></div><section class="wallet-balance"><span>累计已到账 · 模拟收款</span><strong><small>¥</small>${money(w.total)}</strong><div><p>跑腿收入<b>¥${money(w.income)}</b></p><p>垫付返还<b>¥${money(w.reimbursement)}</b></p></div><small>任务确认完成后到账。仅演示记账，不产生真实资金，也不支持提现。</small></section><div class="wallet-stats"><section><span>待结算报酬</span><strong>¥${money(w.pendingReward)}</strong><small>送达后，待发布者确认完成</small></section><section><span>我发布的 · 模拟预付中</span><strong>¥${money(w.held)}</strong><small>已退回预算 ¥${money(w.refunded)}</small></section></div>${w.pending.length?`<section class="wallet-list"><h2>待收款任务 <span>${w.pending.length}</span></h2>${w.pending.map(t=>row(t,true)).join('')}</section>`:''}<section class="wallet-list"><h2>收款记录 <span>${w.received.length}</span></h2>${w.received.length?w.received.sort((a,b)=>b.settlement.at-a.settlement.at).map(t=>row(t)).join(''):`<div class="gentle-empty">${icon('bag')}还没有收款。完成任务后，报酬和垫付返还会在这里分开列明。</div>`}</section><div class="wallet-explain"><h3>跑腿费怎么收到？</h3><p>发布者模拟预付 → 接单送达 → 发布者确认完成 → 报酬记入你的钱包。只提交送达时仍是待结算；有争议则保留处理记录。</p>${btn('查看全部费用明细','ledger','secondary full')}</div>${footer()}`;
+}
 function showLedger() {
   const list = state.tasks.filter(t => [t.owner, t.runner].includes(state.actor));
   openDialog('模拟费用记录', `${notice('金额只用于交互演示，不扣款、不充值、不提现，也不代表真实资金托管。')}${list.map(t => `<div class="action-panel"><h4>${esc(t.title)}</h4><p>${t.owner === state.actor ? '我发布的' : '我接下的'} · ${STATUS[statusOf(t)]}${t.dispute?.status === 'pending' ? ' · 问题待处理' : ''}</p>${moneyTable(t)}${textBtn('查看任务', 'detail', `data-id="${t.id}"`)}</div>`).join('') || empty('还没有费用记录', '完成发布或接单后，这里会展示模拟费用明细。')}`, { type: 'ledger' });
@@ -315,6 +306,41 @@ function showReports() {
   const reports = state.reports.filter(r => r.from === state.actor);
   openDialog('我的举报与问题', `${notice('这版展示提交与待审核状态，没有真实客服在线处理。普通学生不能替平台裁决或处罚他人。')}${issues.map(t => `<div class="action-panel"><h4>${esc(t.title)} · 待模拟审核</h4><p>${esc(t.dispute.reason)}<br>物品与费用：${esc(t.dispute.goods)}</p>${textBtn('查看任务记录', 'detail', `data-id="${t.id}"`)}</div>`).join('')}${reports.map(r => `<div class="action-panel"><h4>任务举报 · 待模拟审核</h4><p>${esc(r.reason)}<br>${date(r.at)}</p></div>`).join('')}${!issues.length && !reports.length ? empty('暂无问题或举报记录', '需要帮助时，请从相关任务进入问题处理，保留约定与必要凭证。') : ''}`, { type: 'reports' });
 }
+const placePicker=document.createElement('dialog');placePicker.id='place-picker';placePicker.className='place-picker';document.body.append(placePicker);
+let picking=null;
+function openPlacePicker(field) {
+  const f=modal.querySelector('#publish-form'),isTask=['pickup','dropoff'].includes(field);
+  let current=isTask?(publishValues(f)[field+'Point']||identifySpot(f.elements[field].value)):ui[field];
+  picking={field,point:current||null,isTask};
+  const title={from:'我从这里出发',to:'准备去这里',via:'添加一个途经点',pickup:'标出取件 / 购买位置',dropoff:'标出公共交接位置'}[field];
+  placePicker.innerHTML=`<div class="modal-head"><h2>${title}</h2><button type="button" class="icon-btn" data-pin-action="close" aria-label="关闭选点">${icon('close')}</button></div><div class="modal-body"><p class="description">常用地点里没有？直接点地图落一个锚点，再写清楚公共地标。</p><label class="field"><span>常用地点（也可直接点下方地图）</span><select id="pin-preset"><option value="">自定义落点</option>${Object.entries(SPOTS).map(([id,p])=>`<option value="${id}" ${current===id?'selected':''}>${p.short}</option>`).join('')}</select></label><div id="pin-map"></div><form id="pin-form"><label class="field"><span>地点名称</span><input name="placeName" aria-label="地点名称" maxlength="40" required value="${esc(spotOf(current)?.name||'')}" placeholder="例如：林间教学楼 · 一楼公共门厅"/></label><details class="optional-fields"><summary>精确调整落点（示意坐标）</summary><div class="form-grid"><label class="field"><span>横向位置 X（20—580）</span><input name="x" aria-label="落点 X" type="number" min="20" max="580" value="${spotOf(current)?.x||300}"/></label><label class="field"><span>纵向位置 Y（20—390）</span><input name="y" aria-label="落点 Y" type="number" min="20" max="390" value="${spotOf(current)?.y||180}"/></label></div><button type="button" class="text-btn" data-pin-action="coordinates">更新落点</button></details><label class="check-row"><input type="checkbox" required/><span>此处为校内公共可达区域，不填写私人住址、房间号或真实敏感位置。</span></label><p class="field-hint">自定义交接点采用当面交接；未经审核的锚点不能当作允许无人放置的交接架。示意图不能判断真实道路是否可通行。</p><p class="form-error error-hidden" role="alert"></p><button type="submit" class="btn primary full">使用这个位置</button></form></div>`;
+  renderPinMap();placePicker.showModal();
+}
+function renderPinMap(){const p=spotOf(picking.point);placePicker.querySelector('#pin-map').innerHTML=mapMarkup({marker:p,label:'点击校园地图自定义落点，也可使用下方坐标输入'});}
+function setPin(x,y) {
+  const f=placePicker.querySelector('#pin-form'),name=f.elements.placeName.value.trim()||'自定义位置';
+  picking.point={x:Math.max(20,Math.min(580,Math.round(x))),y:Math.max(20,Math.min(390,Math.round(y))),name,short:name,custom:true};
+  f.elements.x.value=picking.point.x;f.elements.y.value=picking.point.y;placePicker.querySelector('#pin-preset').value='';renderPinMap();
+}
+placePicker.addEventListener('click',e=>{
+  const action=e.target.closest('[data-pin-action]')?.dataset.pinAction;
+  if(action==='close'){placePicker.close();return;}
+  if(action==='coordinates'){const f=placePicker.querySelector('#pin-form');if(f.elements.x.checkValidity()&&f.elements.y.checkValidity())setPin(Number(f.elements.x.value),Number(f.elements.y.value));return;}
+  const svg=e.target.closest('#pin-map svg');if(svg){const point=svg.createSVGPoint();point.x=e.clientX;point.y=e.clientY;const local=point.matrixTransform(svg.getScreenCTM().inverse());setPin(local.x,local.y);}
+});
+placePicker.addEventListener('change',e=>{
+  if(e.target.id!=='pin-preset'||!e.target.value)return;
+  picking.point=e.target.value;const p=spotOf(picking.point),f=placePicker.querySelector('#pin-form');f.elements.placeName.value=p.name;f.elements.x.value=p.x;f.elements.y.value=p.y;renderPinMap();
+});
+placePicker.addEventListener('submit',e=>{
+  e.preventDefault();e.stopPropagation();const f=e.target,raw=picking.point;
+  const point=typeof raw==='string'&&f.elements.placeName.value.trim()===SPOTS[raw].name?raw:customPoint({...spotOf(raw),name:f.elements.placeName.value.trim()});
+  if(!point){const err=f.querySelector('.form-error');err.textContent='请先在地图上落点，并填写公共地点名称。';err.classList.remove('error-hidden');return;}
+  const {field,isTask}=picking;
+  if(isTask){const publish=modal.querySelector('#publish-form'),select=publish.elements[field],p=spotOf(point);if(![...select.options].some(o=>o.value===p.name))select.add(new Option(p.name+' · 自定义落点',p.name));select.value=p.name;publish.elements[field+'Point'].value=typeof point==='object'?JSON.stringify(point):'';if(field==='dropoff'){publish.elements.dropConsent.checked=false;if(typeof point==='object'){publish.elements.handoff.value='meet';publish.querySelector('.handoff-consent').hidden=true;publish.elements.dropConsent.required=false;}}saveDraft();}
+  else{ui[field]=point;ui.hub=null;render();}
+  placePicker.close();
+});
 function localInputDate(n) { const d = new Date(n); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); }
 function loadDraft() {
   try { return JSON.parse(localStorage.getItem(`${DRAFT_KEY}:${state.actor}`) || 'null') || {}; }
@@ -323,7 +349,7 @@ function loadDraft() {
 function saveDraft() {
   const f = document.querySelector('#publish-form');
   if (!f || f.dataset.editId) return;
-  const p = Object.fromEntries(new FormData(f)); p.buy = f.elements.buy.checked;
+  const p = publishValues(f);
   try { localStorage.setItem(`${DRAFT_KEY}:${state.actor}`, JSON.stringify(p)); } catch { /* Current form remains available. */ }
 }
 function showPublish(values = null, editId = null) {
@@ -333,13 +359,20 @@ function showPublish(values = null, editId = null) {
   openDialog('发布一份校园里的小事', `<p class="description">清楚的约定，是放心互助的开始。仅限本校公共场所交接。</p><form id="publish-form"><div class="form-grid"><label class="field full"><span>任务标题</span><input name="title" value="${esc(d.title || '')}" required maxlength="40" placeholder="例如：帮我从食堂带一份午餐" /></label><label class="field"><span>任务类别</span><select name="category">${Object.entries(CATEGORIES).filter(([key]) => key !== 'all').map(([key, c]) => `<option value="${key}" ${d.category === key ? 'selected' : ''}>${c.name}</option>`).join('')}</select></label><label class="field"><span>最晚完成时间</span><input name="deadline" type="datetime-local" required value="${esc(d.deadline || localInputDate(Date.now() + 3600000))}" min="${localInputDate(Date.now())}" /></label><label class="field"><span>取件 / 购买地点</span><input name="pickup" required maxlength="60" value="${esc(d.pickup || '')}" placeholder="例如：第一食堂 · 一楼" /></label><label class="field"><span>公共交接地点</span><input name="dropoff" required maxlength="60" value="${esc(d.dropoff || '')}" placeholder="例如：设计楼 · 公共大厅" /></label><label class="field full"><span>物品 / 商品规格与数量</span><input name="item" required maxlength="150" value="${esc(d.item || '')}" placeholder="例如：鸡腿饭 × 1，少辣、不加香菜" /></label><label class="field full"><span>任务说明</span><textarea name="description" required maxlength="300" placeholder="说明取件时间、重量体积、特殊要求；不填写真实取件码、手机号或宿舍房间。">${esc(d.description || '')}</textarea></label><label class="field"><span>跑腿报酬 / 元</span><input name="reward" type="number" min="0.01" max="100" step="0.01" required value="${esc(d.reward || '')}" inputmode="decimal" placeholder="例如：5" /><small>正数，上限 ¥100，为演示参数。</small></label><label class="field"><span>商品垫付上限 / 元</span><input name="budget" type="number" min="0.01" max="200" step="0.01" value="${esc(d.budget || '')}" inputmode="decimal" placeholder="仅代买需填写" ${d.buy ? 'required' : 'disabled'} /><small>与报酬分开，最高 ¥200。</small></label></div><label class="check-row"><input type="checkbox" name="buy" ${d.buy ? 'checked' : ''} /><span>需要接单同学代买并垫付商品款，购买前必须由我确认商品与报价；换品或超预算重新确认。</span></label>${notice('禁止代考、代刷、代写、违规占座及危险物品。代买仅限普通餐品和低价日用品。请勿填写真实个人敏感信息。')}<label class="check-row"><input type="checkbox" name="agreement" required /><span>我已确认任务符合互助范围，物品轻小、可由一位同学携带，并理解所有费用仅为模拟。</span></label><div class="form-error error-hidden" role="alert"></div><button class="btn primary full" type="submit">下一步，确认约定与模拟预付</button><p class="seed-note">草稿会保存在当前身份、当前浏览器中。暂不发送给真实用户。</p></form>`, { type: 'publish' });
   enhancePublishForm(d,source);
 }
+function publishValues(form) {
+  const values=Object.fromEntries(new FormData(form));values.buy=form.elements.buy.checked;
+  for(const key of ['pickupPoint','dropoffPoint']){try{values[key]=values[key]?JSON.parse(values[key]):null;}catch{values[key]=null;}}
+  return values;
+}
 function enhancePublishForm(values={},source=null) {
-  const form=modal.querySelector('#publish-form'); if(!form)return;
+  const form=modal.querySelector('#publish-form');if(!form)return;
   for(const name of ['pickup','dropoff']) {
-    const old=form.elements[name],selected=identifySpot(values[name]||''),select=document.createElement('select');
-    select.name=name; select.required=true;
-    select.innerHTML=`<option value="">选择校内公共${name==='pickup'?'取件':'交接'}点</option>`+Object.entries(SPOTS).map(([id,p])=>`<option value="${p.name}" ${id===selected?'selected':''}>${p.name}</option>`).join('');
+    const old=form.elements[name],selected=identifySpot(values[name]||''),point=typeof values[name+'Point']==='string'?JSON.parse(values[name+'Point']||'null'):values[name+'Point'],select=document.createElement('select');
+    select.name=name;select.required=true;
+    select.innerHTML=`<option value="">选择校内公共${name==='pickup'?'取件':'交接'}点</option>`+Object.entries(SPOTS).map(([id,p])=>`<option value="${p.name}" ${!point&&id===selected?'selected':''}>${p.name}</option>`).join('')+(point?`<option value="${esc(point.name)}" selected>${esc(point.name)} · 自定义落点</option>`:'');
     old.replaceWith(select);
+    const hidden=document.createElement('input');hidden.type='hidden';hidden.name=name+'Point';hidden.value=point?JSON.stringify(point):'';select.after(hidden);
+    select.insertAdjacentHTML('afterend',`<button type="button" class="pin-link" data-action="pick-place" data-field="${name}">${icon('pin','sm')}地图选点 / 自定义位置</button>`);
   }
   const group=document.createElement('div'); group.className='handoff-choice';
   group.innerHTML=`<label class="field"><span>怎么交接？</span><select name="handoff" aria-label="交接方式"><option value="meet" ${values.handoff!=='safe_drop'?'selected':''}>当面交接 · 约定公共点碰面</option><option value="safe_drop" ${values.handoff==='safe_drop'?'selected':''}>指定交接架自取 · 事先授权放置</option></select></label><label class="check-row handoff-consent" ${values.handoff!=='safe_drop'?'hidden':''}><input type="checkbox" name="dropConsent" ${values.dropConsent?'checked':''} ${values.handoff==='safe_drop'?'required':''}/><span>我授权将物品放到所选指定交接架。接单者记录放置凭证并通知我后可离开；我会及时自取，丢失或放置争议不由倒计时自动判责。</span></label><p class="field-hint">自取仅支持图书馆、设计楼及二/三号楼下的演示交接架。不承诺真实监控或值守。</p>`;
@@ -351,8 +384,9 @@ function enhancePublishForm(values={},source=null) {
   if(!source&&!values.reward) form.elements.reward.value='2';
 }
 function publishPreview(form) {
-  const values = Object.fromEntries(new FormData(form)); values.buy = form.elements.buy.checked;
-  if(!values.title?.trim()) values.title=`${CATEGORIES[values.category].name}：${SPOTS[identifySpot(values.pickup)]?.short||'取件点'} → ${SPOTS[identifySpot(values.dropoff)]?.short||'交接点'}`;
+  const values = publishValues(form);
+  if(!values.title?.trim()) values.title=`${CATEGORIES[values.category].name}：${values.pickupPoint?.short||SPOTS[identifySpot(values.pickup)]?.short||'取件点'} → ${values.dropoffPoint?.short||SPOTS[identifySpot(values.dropoff)]?.short||'交接点'}`;
+  if(values.title.length>40)values.title=values.title.slice(0,40);
   if(!values.description?.trim()) values.description=`${values.item}。请按已确认的时间、公共地点和交接方式完成。${values.buy?'购买前先确认商品及报价。':''}`;
   saveDraft(); ui.draft = values;
   const editId = ui.dialog.editId;
@@ -416,11 +450,16 @@ function confirmPanel(title, text, label, action, id, extra = '') {
 }
 
 document.addEventListener('click', e => {
+  if(e.target.closest('#place-picker'))return;
   const hub=e.target.closest('[data-action="map-hub"]');
   if(hub) {ui.hub=hub.dataset.spot||null;render();return;}
   const b = e.target.closest('button[data-action]'); if (!b || b.disabled) return;
   const a = b.dataset.action, id = b.dataset.id, t = id ? getTask(id) : null;
   switch (a) {
+    case 'pick-place': openPlacePicker(b.dataset.field);break;
+    case 'clear-via': ui.via=null;ui.hub=null;render();break;
+    case 'task-scope': ui.scope=b.dataset.scope;ui.hub=null;render();break;
+    case 'all-tasks': ui.scope='all';ui.hub=null;render();break;
     case 'mode': ui.mode=b.dataset.mode;ui.hub=null;ui.category='all';ui.query='';render();break;
     case 'swap-route': [ui.from,ui.to]=[ui.to,ui.from];ui.hub=null;render();break;
     case 'widen-route': ui.detour=800;ui.hub=null;render();break;
@@ -428,9 +467,6 @@ document.addEventListener('click', e => {
     case 'runner-onboard': runnerOnboard(id);break;
     case 'track': showTracking(id);break;
     case 'task-details': ui.forceDetails=true;showTask(id);ui.forceDetails=false;break;
-    case 'play-tour': showTour();break;
-    case 'tour-toggle': if(ui.tracking?.tour){if(ui.tracking.elapsed>=24000){showTour();break;}ui.tracking.paused=!ui.tracking.paused;ui.tracking.last=performance.now();b.textContent=ui.tracking.paused?'继续演示':'暂停演示';}break;
-    case 'tour-next': if(ui.tracking?.tour){const tr=ui.tracking;tr.elapsed=tr.elapsed<8400?8400:tr.elapsed<18000?18000:24000;tr.last=performance.now();}break;
     case 'sample-photo': {const f=b.closest('form');f.elements.proof.value='sample';f.querySelector('.sample-photo').hidden=false;b.textContent='重新使用虚构照片样例';break;}
     case 'nav': navigate(b.dataset.page); break;
     case 'to-square': navigate('square'); break;
@@ -481,6 +517,7 @@ document.addEventListener('click', e => {
     case 'rules': rulesPanel(); break;
     case 'credit': showCredit(); break;
     case 'ledger': showLedger(); break;
+    case 'open-wallet': navigate('wallet');break;
     case 'reports': showReports(); break;
     case 'read': run('read', {}, '当前身份的消息已标记已读'); break;
     case 'accept':
@@ -488,7 +525,7 @@ document.addEventListener('click', e => {
       if(!userOf(state).runnerEnabled){runnerOnboard(id);break;}
       confirmPanel('接下这份顺路之前', `请确认能在 ${date(t.deadline)} 前完成，交接点为 ${esc(t.dropoff)}。${t.buy ? `商品垫付上限 ¥${money(t.budget)}，报酬 ¥${money(t.reward)}。购买前先提交报价并等待发布者确认。` : `无需商品垫付，报酬 ¥${money(t.reward)}。`}${t.handoff==='safe_drop'?'发布者已授权指定交接架放置，记录凭证并通知后可离开。':'需要当面交接，不允许擅自放下。'}最多同时运输一项。`, '我能完成，确认接单', 'accept-confirm', id);
       break;
-    case 'accept-confirm': if (run('accept', { id,from:ui.from }, '接单成功，必要的取件信息已开放')) showTask(id); break;
+    case 'accept-confirm': if (run('accept', { id,from:ui.from,to:ui.to,via:ui.via,depart:true }, '接单成功，正在前往取件点')) showTask(id); break;
     case 'command': if (run(b.dataset.command, { id }, '任务进度已更新')) showTask(id); break;
     case 'quote': taskForm('quote', id); break;
     case 'withdraw-quote': if (run('withdrawQuote', { id }, '旧授权已撤回')) taskForm('quote', id); break;
@@ -542,23 +579,23 @@ document.addEventListener('input', e => {
   if (e.target.closest('#publish-form')) saveDraft();
 });
 document.addEventListener('change', e => {
-  if(['route-from','route-to','route-detour'].includes(e.target.id)) {const id=e.target.id;ui[id==='route-from'?'from':id==='route-to'?'to':'detour']=id==='route-detour'?Number(e.target.value):e.target.value;ui.hub=null;render();document.getElementById(id)?.focus();return;}
+  if(['route-from','route-to','route-detour'].includes(e.target.id)&&e.target.value!=='custom') {const id=e.target.id;ui[id==='route-from'?'from':id==='route-to'?'to':'detour']=id==='route-detour'?Number(e.target.value):e.target.value;ui.hub=null;render();document.getElementById(id)?.focus();return;}
   if(e.target.name==='handoff'&&e.target.closest('#publish-form')) {const f=e.target.form,safe=e.target.value==='safe_drop';f.querySelector('.handoff-consent').hidden=!safe;f.elements.dropConsent.required=safe;saveDraft();}
-  if(e.target.name==='dropoff'&&e.target.closest('#publish-form')) {e.target.form.elements.dropConsent.checked=false;saveDraft();}
+  if(['pickup','dropoff'].includes(e.target.name)&&e.target.closest('#publish-form')) {e.target.form.elements[e.target.name+'Point'].value='';if(e.target.name==='dropoff')e.target.form.elements.dropConsent.checked=false;saveDraft();}
   if (e.target.id === 'sort-select') { ui.sort = e.target.value; document.querySelector('#feed-content').innerHTML = feedContent(); }
   if (e.target.name === 'buy' && e.target.closest('#publish-form')) { const input = modal.querySelector('[name="budget"]'); input.disabled = !e.target.checked; input.required = e.target.checked; saveDraft(); }
 });
 modal.addEventListener('cancel', e => { e.preventDefault(); closeDialog(); });
 modal.addEventListener('click', e => { if (e.target === modal && e.clientX < modal.getBoundingClientRect().left) closeDialog(); });
 function navigate(page) {
-  closeDialog(); ui.page = ['square', 'mine', 'messages', 'me'].includes(page) ? page : 'square';
+  closeDialog(); ui.page = ['square', 'mine', 'messages', 'wallet', 'me'].includes(page) ? page : 'square';
   if(ui.page==='mine') ui.mine=ui.mode==='runner'?'accepted':'published';
   history.pushState(null, '', `#${ui.page}`); render(); window.scrollTo({ top: 0, behavior: 'instant' });
 }
 function route() {
   const hash = decodeURIComponent(location.hash.slice(1));
   if (hash.startsWith('task/')) { render(); showTask(hash.slice(5), false); }
-  else { closeDialog(); ui.page = ['square', 'mine', 'messages', 'me'].includes(hash) ? hash : 'square'; render(); }
+  else { closeDialog(); ui.page = ['square', 'mine', 'messages', 'wallet', 'me'].includes(hash) ? hash : 'square'; render(); }
 }
 window.addEventListener('popstate', route);
 window.addEventListener('hashchange', route);
