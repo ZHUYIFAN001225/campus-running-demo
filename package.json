@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/serve.mjs",
-    "test": "node --test tests/model.test.js",
-    "check": "node --check app.js && node --check lib/model.js"
+    "test": "node --test tests/*.test.js",
+    "check": "node --check app.js && node --check lib/model.js && node --check lib/campus.js && node --check lib/experience.js"
   }
 }

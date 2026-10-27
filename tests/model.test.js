@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createState, evolve, reconcile, creditOf, visibleTask, cents, LIMITS } from '../lib/model.js';
+import { createState, migrateState, evolve, reconcile, creditOf, visibleTask, cents, LIMITS } from '../lib/model.js';
+import { SPOTS, shortestPath, matchRoute, pointAlong } from '../lib/campus.js';
 const now = Date.now();
 const step = (s, cmd, p = {}) => evolve(s, cmd, p, now);
 const as = (s, actor) => step(s, 'switch', { actor });
@@ -78,7 +79,7 @@ test('地点变更由另一方同意，不能静默修改', () => {
   let s = preparing(); const old = s.tasks.find(t => t.id === 'lunch').dropoff;
   s = step(s, 'change', { id: 'lunch', dropoff: '图书馆公共门口', reason: '临时调课' }); assert.equal(s.tasks.find(t => t.id === 'lunch').dropoff, old);
   assert.throws(() => step(s, 'respondChange', { id: 'lunch', approve: true }), /另一方/);
-  s = step(as(s, 'lin'), 'respondChange', { id: 'lunch', approve: true }); assert.equal(s.tasks.find(t => t.id === 'lunch').dropoff, '图书馆公共门口');
+  s = step(as(s, 'lin'), 'respondChange', { id: 'lunch', approve: true }); assert.equal(s.tasks.find(t => t.id === 'lunch').dropoff, SPOTS.library.name);
 });
 test('评价只允许完成后参与方各一次，评价不重复加信用', () => {
   assert.throws(() => step(preparing(), 'review', { id: 'lunch', rating: 5, text: '很好' }), /状态/);
@@ -132,6 +133,8 @@ test('无人接单超时全额退回一次；已接单任务超时不擅自退�
 });
 test('已付款取件不需要采购报价，正常完成只结算报酬', () => {
   let s = step(fresh(), 'accept', { id: 'parcel' }); s = step(s, 'start', { id: 'parcel' });
+  assert.throws(()=>step(s,'deliver',{id:'parcel',note:'未取就送达'}),/先确认已取/);
+  s=step(s,'pickup',{id:'parcel'});
   s = step(s, 'deliver', { id: 'parcel', note: '公共交接点当面交接' }); s = step(as(s, 'lin'), 'complete', { id: 'parcel' });
   const t = s.tasks.find(t => t.id === 'parcel'); assert.equal(t.settlement.runnerPayout, 400); assert.equal(t.settlement.refund, 0);
   assert.equal(visibleTask(s, t).sensitive, undefined);

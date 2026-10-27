@@ -1,5 +1,7 @@
-import { SCHOOL, CATEGORIES, STATUS, AUTH, money, createState, reconcile, userOf, certified, statusOf, creditOf, reviewAverage, visibleTask, evolve } from './lib/model.js';
+import { SCHOOL, CATEGORIES, STATUS, AUTH, money, createState, migrateState, reconcile, userOf, certified, statusOf, creditOf, reviewAverage, visibleTask, evolve } from './lib/model.js';
 import { icon, logo, campusArt } from './lib/icons.js';
+import { SPOTS, identifySpot, shortestPath, taskSpots, matchRoute, mapMarkup, formatDistance, walkMinutes } from './lib/campus.js';
+import { home as experienceHome, routeCard, stepLabel, trackingSnapshot, tourSnapshot } from './lib/experience.js';
 
 const KEY = 'tonglu-campus-v1';
 const DRAFT_KEY = 'tonglu-draft-v1';
@@ -11,9 +13,9 @@ try {
   if (saved && (saved.version !== 1 || !Array.isArray(saved.tasks) || !saved.users?.[saved.actor] || !Array.isArray(saved.notifications) || !Array.isArray(saved.reports) || !Number.isInteger(saved.revision) || saved.tasks.some(t => !t.id || !saved.users[t.owner] || !CATEGORIES[t.category] || !STATUS[t.status] || !Array.isArray(t.events) || !Array.isArray(t.reviews) || !Number.isInteger(t.prepaid) || !Number.isFinite(t.deadline)))) throw new Error('invalid');
   state = saved || createState();
 } catch { state = createState(); storageWarning = '本地演示记录无法读取，已恢复初始数据。'; }
-const normalized = reconcile(state);
+const normalized = reconcile(migrateState(state));
 if (normalized !== state) { state = normalized; persist(); }
-const ui = { page: 'square', category: 'all', query: '', sort: 'new', mine: 'published', status: 'all', dialog: null, draft: null, rating: 5, afterAuth: null };
+const ui = { page: 'square', mode: 'request', from: 'north', to: 'dorm3', detour: 400, hub: null, category: 'all', query: '', sort: 'new', mine: 'published', status: 'all', dialog: null, draft: null, rating: 5, afterAuth: null, tracking: null, forceDetails: false };
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const btn = (label, action, cls = 'primary', attrs = '') => `<button type="button" class="btn ${cls}" data-action="${action}" ${attrs}>${label}</button>`;
 const textBtn = (label, action, attrs = '') => `<button type="button" class="text-btn" data-action="${action}" ${attrs}>${label}</button>`;
@@ -56,14 +58,19 @@ function run(command, data = {}, message = '') {
 }
 function shellContent() {
   const u = userOf(state), n = unread();
-  const links = [['square', 'grid', '任务广场'], ['mine', 'tasks', '我的任务'], ['messages', 'chat', '消息'], ['me', 'user', '我的']];
+  const links = [['square', 'grid', '首页'], ['mine', 'tasks', '任务'], ['messages', 'chat', '消息'], ['me', 'user', '我的']];
   const brand = `<span class="brand">${logo}<span class="brand-name">同路<small class="brand-sub">CAMPUS TOGETHER</small></span></span>`;
   const nav = links.map(([id, glyph, label]) => `<button class="nav-link ${ui.page === id ? 'active' : ''}" data-action="nav" data-page="${id}" ${ui.page === id ? 'aria-current="page"' : ''}>${icon(glyph)}${label}${id === 'messages' && n ? `<span class="count-dot">${n}</span>` : ''}</button>`).join('');
   return `<aside class="sidebar"><a href="#square" aria-label="同路首页">${brand}</a><p class="nav-label">YOUR CAMPUS, CONNECTED</p><nav class="nav-list" aria-label="主导航">${nav}</nav><div class="sidebar-bottom"><div class="side-note"><strong>小事有人帮，顺路有回响。</strong>在同一个校园，<br>把每一段顺路变成一点善意。</div>${btn(`${icon('plus')}发布任务`, 'publish', 'primary full')}</div></aside>
     <div class="main-wrap">${storageWarning ? `<div class="storage-warning" role="alert">${esc(storageWarning)}</div>` : ''}<header class="topbar"><a class="mobile-brand" href="#square" aria-label="同路首页">${brand}</a><button class="campus-switch" data-action="campus">${icon('pin')}<span>${SCHOOL.name}</span><span>校内互助</span></button><div class="top-actions"><button class="demo-trigger" data-action="demo" aria-label="演示说明与切换身份"><span>DEMO</span>演示说明 / 切换身份</button><button class="icon-btn" data-action="nav" data-page="messages" aria-label="消息">${icon('bell')}${n ? '<span class="notification-dot"></span>' : ''}</button><button class="account" data-action="nav" data-page="me">${avatar(u)}<span>${esc(u.name)}</span>${icon('down')}</button></div></header>
-    <main class="page" id="page-content">${pageContent()}</main></div><nav class="bottom-nav" aria-label="手机导航">${[links[0], links[1], ['publish', 'plus', '发布'], links[2], links[3]].map(([id, glyph, label]) => `<button class="bottom-item ${ui.page === id ? 'active' : ''} ${id === 'publish' ? 'publish' : ''}" data-action="${id === 'publish' ? 'publish' : 'nav'}" data-page="${id}" aria-label="${label}" ${ui.page === id ? 'aria-current="page"' : ''}>${icon(glyph)}<span>${label}</span>${id === 'messages' && n ? `<span class="count-dot">${n}</span>` : ''}</button>`).join('')}</nav>`;
+    <main class="page" id="page-content">${pageContent()}</main></div><nav class="bottom-nav" aria-label="手机导航">${links.map(([id, glyph, label]) => `<button class="bottom-item ${ui.page === id ? 'active' : ''} ${id === 'publish' ? 'publish' : ''}" data-action="${id === 'publish' ? 'publish' : 'nav'}" data-page="${id}" aria-label="${label}" ${ui.page === id ? 'aria-current="page"' : ''}>${icon(glyph)}<span>${label}</span>${id === 'messages' && n ? `<span class="count-dot">${n}</span>` : ''}</button>`).join('')}</nav>`;
 }
-function render() { root.innerHTML = shellContent(); }
+function render() {
+  root.innerHTML = shellContent();
+  // Existing promises come before asking the user to publish something else.
+  const current=root.querySelector('.my-current');
+  if(ui.page==='square'&&ui.mode==='request'&&current?.querySelector('.current-task')) current.parentElement.prepend(current);
+}
 function footer() { return '<footer class="page-footer"><span>同路 · 校园里的每一段路，都有回应。<br>交互演示 · 虚构校园与数据 · 不发生真实付款</span><span>SMALL FAVORS. SHARED JOURNEYS.</span></footer>'; }
 function pageContent() {
   if (ui.page === 'mine') return minePage();
@@ -71,13 +78,7 @@ function pageContent() {
   if (ui.page === 'me') return profilePage();
   return squarePage();
 }
-function squarePage() {
-  const u = userOf(state);
-  return `<section class="hero"><div class="hero-copy"><p class="eyebrow">A LITTLE HELP, ALONG THE WAY</p><h1>让顺路，<br>成为彼此的帮助。</h1><p>取个快递，带一杯咖啡。<br>校园里的小事，交给顺路的同学。</p>${btn(`发布一个任务 ${icon('arrow', 'sm')}`, 'publish')}</div><div class="hero-art">${campusArt}</div><span class="hero-index">YOUR NEXT STOP, TOGETHER</span></section>
-    <div class="trust-strip"><span>${icon('shield')}同校认证，放心相遇</span><span>${icon('wallet')}限额代买，费用透明</span><span>${icon('heart')}履约留痕，积累信用</span><span class="strip-label">DESIGNED FOR CAMPUS LIFE</span></div>
-    <div class="workspace"><section aria-label="任务广场"><div class="section-head"><h2>校园此刻 <span>ON CAMPUS</span></h2><label class="search-box">${icon('search')}<input id="task-search" type="search" placeholder="搜任务、地点" value="${esc(ui.query)}" aria-label="搜索任务或地点" maxlength="80" /></label></div><div class="categories" role="group" aria-label="任务类别">${Object.entries(CATEGORIES).map(([key, c]) => `<button class="category ${ui.category === key ? 'active' : ''}" data-action="category" data-category="${key}" aria-pressed="${ui.category === key}">${icon(c.icon)}${c.name}</button>`).join('')}</div><div id="feed-content">${feedContent()}</div></section>
-    <aside class="rail"><section class="rail-card auth-card"><div class="rail-heading"><h3>${certified(u) ? '同校认证，让互助更安心' : '先认识，再顺路'}</h3>${icon('shield')}</div><p class="rail-copy">${certified(u) ? `你已完成${SCHOOL.name}演示认证。接单后才开放必要的取件信息，公共地点交接。` : '广场可预览。完成在校认证后，才能发布需求、接单和查看必要的交接信息。'}</p>${btn(`${certified(u) ? '查看我的认证' : '了解在校认证'} ${icon('right', 'sm')}`, 'auth', 'secondary small full')}</section><section class="rail-card"><div class="rail-heading"><h3>让善意有迹可循</h3>${icon('route')}</div><div class="mini-points"><div class="mini-point"><span>01</span><div><h4>说清楚你的小事</h4><p>地点、时间、报酬，约定在先。</p></div></div><div class="mini-point"><span>02</span><div><h4>交给同校的同学</h4><p>同校认证，双方确认再出发。</p></div></div><div class="mini-point"><span>03</span><div><h4>每一次履约，都算数</h4><p>确认完成，互相评价，积累信用。</p></div></div></div></section><div class="rail-footer">本页为虚构场景的交互 Demo。<br>认证、费用与消息均为模拟。<button class="text-btn" data-action="rules">互助规则与保障 ${icon('arrow', 'sm')}</button><span>MEET KINDNESS, ON YOUR WAY.</span></div></aside></div>${footer()}`;
-}
+function squarePage() { return experienceHome({state,ui,icon,btn,esc,footer,taskCard}); }
 function filteredTasks() {
   const q = ui.query.toLowerCase().trim();
   const list = state.tasks.filter(t => statusOf(t) === 'open' && (ui.category === 'all' || t.category === ui.category) && (!q || [t.title, t.description, t.pickup, t.dropoff].join(' ').toLowerCase().includes(q)));
@@ -88,6 +89,7 @@ function feedContent() {
   return `<div class="feed-meta"><span>共 ${tasks.length} 个待接任务 · ${certified(userOf(state)) ? '仅限同校学生接单' : '脱敏预览，认证后可参与'}</span><label>排序 <select id="sort-select" aria-label="任务排序"><option value="new" ${ui.sort === 'new' ? 'selected' : ''}>最新发布</option><option value="soon" ${ui.sort === 'soon' ? 'selected' : ''}>即将到期</option><option value="reward" ${ui.sort === 'reward' ? 'selected' : ''}>报酬优先</option></select></label></div><div class="task-grid">${tasks.length ? tasks.map(taskCard).join('') : empty('这段顺路，还没有新任务', '试试其他分类或关键词，也可以发布你的第一个需求。', 'clear-search', '查看全部任务')}</div>`;
 }
 function taskCard(t) {
+  if (ui.page==='square' && ui.mode==='runner') return routeCard(t,{state,ui,icon,esc});
   const owner = userOf(state, t.owner), c = CATEGORIES[t.category], status = statusOf(t), stranger = !certified(userOf(state));
   const location = text => stranger ? text.split(' · ')[0] + '附近' : text;
   return `<button class="task-card" data-action="detail" data-id="${esc(t.id)}" aria-label="查看任务：${esc(t.title)}"><div class="card-top"><div class="card-type"><span class="category-icon">${icon(c.icon)}</span><span>${c.name}</span></div><span class="pill ${status === 'open' ? '' : 'neutral'}">${t.dispute?.status === 'pending' ? '问题处理中' : STATUS[status]}</span></div><h3>${esc(t.title)}</h3><div class="card-route"><div class="route-row"><i class="route-dot"></i><span>${esc(location(t.pickup))}</span></div><div class="route-row"><i class="route-dot destination"></i><span>${esc(location(t.dropoff))}</span></div></div><div class="card-tags"><span>${esc(timeLeft(t))}</span><span>${t.buy ? `代买上限 ¥${money(t.budget)}` : '无需垫付'}</span>${t.distance ? `<span>约 ${t.distance} km · 示意</span>` : ''}</div><div class="card-bottom"><div class="person">${avatar(owner)}<span>${esc(owner.short)}同学</span>${verified(owner)}</div><div class="reward"><small>¥</small>${money(t.reward)}<span class="reward-label">跑腿报酬</span></div></div></button>`;
@@ -106,12 +108,14 @@ function messagesPage() {
 }
 function profilePage() {
   const u = userOf(state), completed = state.tasks.filter(t => t.runner === u.id && t.status === 'completed'), c = creditOf(state, u.id);
-  return `<div class="wide-card"><section class="profile-hero">${avatar(u, 'big')}<div><h1>${esc(u.name)}</h1><p>${certified(u) ? `${SCHOOL.name} · ${esc(u.department)}` : '先认识彼此，再开始互助'}</p></div>${btn(authName(u), 'auth', 'secondary small')}</section><div class="profile-stats"><div class="profile-stat"><b>${c}</b><span>演示信用分</span></div><div class="profile-stat"><b>${completed.length}</b><span>完成跑腿</span></div><div class="profile-stat"><b>${reviewAverage(state, u.id)}</b><span>收到的评价</span></div></div><p class="section-caption">信用与身份认证分别展示。履约记录、评价与初始分数均为演示数据，不能替代对交易风险的判断。</p><div class="menu-card">${[['shield', '在校认证', 'auth', authName(u)], ['route', '信用与履约明细', 'credit', '每一笔都有依据'], ['wallet', '模拟费用记录', 'ledger', '不发生真实付款'], ['flag', '我的举报与问题', 'reports', '查看处理进度'], ['info', '互助规则与隐私', 'rules', '了解参与边界'], ['swap', '演示说明与切换身份', 'demo', '体验任务双方']].map(([glyph, label, action, hint]) => `<button class="menu-item" data-action="${action}">${icon(glyph)}<span>${label}</span><small>${esc(hint)}</small>${icon('right')}</button>`).join('')}</div>${footer()}</div>`;
+  return `<div class="wide-card"><section class="profile-hero">${avatar(u, 'big')}<div><h1>${esc(u.name)}</h1><p>${certified(u) ? `${SCHOOL.name} · ${esc(u.department)}` : '先认识彼此，再开始互助'}</p></div>${btn(authName(u), 'auth', 'secondary small')}</section><div class="profile-stats"><div class="profile-stat"><b>${c}</b><span>演示信用分</span></div><div class="profile-stat"><b>${completed.length}</b><span>完成跑腿</span></div><div class="profile-stat"><b>${reviewAverage(state, u.id)}</b><span>收到的评价</span></div></div><p class="section-caption">信用与身份认证分别展示。履约记录、评价与初始分数均为演示数据，不能替代对交易风险的判断。</p><div class="menu-card">${[['shield', '在校认证', 'auth', authName(u)], ['route', '接单身份', 'runner-onboard', u.runnerEnabled ? '已开通' : '未开通'], ['route', '信用与履约明细', 'credit', '每一笔都有依据'], ['wallet', '模拟费用记录', 'ledger', '不发生真实付款'], ['flag', '我的举报与问题', 'reports', '查看处理进度'], ['info', '互助规则与隐私', 'rules', '了解参与边界'], ['swap', '演示说明与切换身份', 'demo', '体验任务双方']].map(([glyph, label, action, hint]) => `<button class="menu-item" data-action="${action}">${icon(glyph)}<span>${label}</span><small>${esc(hint)}</small>${icon('right')}</button>`).join('')}</div>${footer()}</div>`;
 }
 
 function openDialog(title, body, info = {}) {
   const already = modal.open;
   ui.dialog = info;
+  ui.tracking = null;
+  modal.classList.toggle('tracking-modal',['tracking','tour'].includes(info.type));
   modal.innerHTML = `<div class="modal-head"><h2 id="modal-title">${title}</h2><button class="icon-btn" data-action="close" aria-label="关闭">${icon('close')}</button></div><div class="modal-body">${body}<div class="form-error error-hidden" role="alert"></div></div>`;
   if (!already) { modal.showModal(); document.body.style.overflow = 'hidden'; }
   modal.scrollTop = 0;
@@ -119,7 +123,7 @@ function openDialog(title, body, info = {}) {
 }
 function closeDialog() {
   saveDraft();
-  modal.close(); document.body.style.overflow = ''; ui.dialog = null;
+  modal.close(); document.body.style.overflow = ''; ui.dialog = null; ui.tracking = null;
   if (location.hash.startsWith('#task/')) history.replaceState(null, '', `#${ui.page}`);
 }
 function showTask(id, updateHash = true) {
@@ -127,7 +131,8 @@ function showTask(id, updateHash = true) {
   if (updateHash && location.hash !== `#task/${id}`) history.pushState(null, '', `#task/${encodeURIComponent(id)}`);
   const t = visibleTask(state, raw), u = userOf(state), owner = userOf(state, t.owner), runner = t.runner ? userOf(state, t.runner) : null;
   const party = [t.owner, t.runner].includes(u.id), guest = !certified(u) && !party, st = statusOf(t);
-  const locationText = text => guest ? esc(text.split(' · ')[0]) + '附近（认证后查看公共交接点）' : esc(text);
+  if (party && ['accepted','progress','delivered'].includes(st) && !ui.forceDetails) return showTracking(id,updateHash);
+  const locationText = text => identifySpot(text)?esc(SPOTS[identifySpot(text)].name):(guest?esc(text.split(' · ')[0])+'附近':esc(text));
   let action = '';
   const commandBtn = (label, command, cls = 'primary') => btn(label, 'command', cls, `data-command="${command}" data-id="${esc(id)}"`);
   if (st === 'open') {
@@ -163,6 +168,90 @@ function showTask(id, updateHash = true) {
   if (t.dispute?.status === 'pending' || t.cancelRequest?.status === 'pending' || t.change?.status === 'pending') {
     modal.querySelectorAll('[data-action="cancel-form"], [data-action="change-form"]').forEach(el => el.remove());
   }
+  if (st==='open') {
+    const {pickup,dropoff}=taskSpots(t), match=ui.mode==='runner'&&t.owner!==u.id?matchRoute(t,ui.from,ui.to):null;
+    const block=document.createElement('section'); block.className='task-route-preview';
+    block.innerHTML=mapMarkup({route:match?.nodes||shortestPath(pickup,dropoff).nodes,pickup,dropoff})+(match?`<div class="route-preview-metrics"><span>到取件点 <b>${formatDistance(match.toPickup)}</b></span><span>额外绕行 <b>${formatDistance(match.extra)}</b></span><span>约多走 <b>${match.extra===0?0:walkMinutes(match.extra)} 分钟</b></span></div>`:'');
+    modal.querySelector('.detail-top').after(block);
+    const actions=modal.querySelector('.detail-actions');
+    block.after(actions);
+  }
+  if(party&&t.deliveryProof&&st==='completed') {
+    const proof=document.createElement('section');proof.className='delivery-proof';
+    proof.innerHTML=`<strong>已保存的送达凭证 · ${esc(t.dropoff)}</strong><img src="./assets/handoff-sample.png" alt="AI 生成的虚构放置凭证样例"/><p>${date(t.deliveryProof.at)} · ${esc(t.deliveryNote)}<br>仅供本任务双方查看；照片为生成样例，不是真实证据。</p>`;
+    modal.querySelector('.detail-top').after(proof);
+  }
+}
+function showTracking(id,updateHash=true) {
+  const t=getTask(id),u=userOf(state);
+  if (!t || ![t.owner,t.runner].includes(u.id)) { toast('仅任务双方可以查看配送位置'); return; }
+  if(updateHash && location.hash!==`#task/${id}`) history.pushState(null,'',`#task/${id}`);
+  const snap=trackingSnapshot(t,Date.now(),state.actor),{pickup,dropoff}=taskSpots(t),isOwner=t.owner===u.id,r=userOf(state,isOwner?t.runner:t.owner);
+  const command=(label,cmd)=>btn(label,'command','primary full',`data-id="${id}" data-command="${cmd}"`);
+  let action='';
+  if(t.dispute?.status==='pending') action=notice('问题已记录，暂缓结算。可查看处理进度，普通学生不能自行裁决。','warning');
+  else if(t.cancelRequest?.status==='pending'||t.change?.status==='pending') action=btn('有一项约定待处理，点击查看','task-details','primary full',`data-id="${id}"`);
+  else if(isOwner) {
+    if(t.status==='delivered') action=btn(t.handoff==='safe_drop'?'我已取到物品，确认完成':'我已收到，确认完成','complete-confirm','primary full',`data-id="${id}"`);
+    else if(t.purchase?.status==='pending') action=`${btn('采购商品与报价待你确认','approve-quote','primary full',`data-id="${id}"`)}${btn('不同意，退回报价','command','secondary full',`data-id="${id}" data-command="rejectQuote"`)}`;
+    else action=btn(`${icon('chat','sm')}联系接单同学`,'chat','primary full',`data-id="${id}"`);
+  } else if(t.status==='accepted') action=command('出发，去取件','start');
+  else if(t.status==='progress') {
+    if(t.buy&&!t.purchase?.bought) {
+      action=t.purchase?.status==='pending'?`${notice('报价待发布者确认。请勿先购买，可切换演示身份处理。')}${btn('撤回并重新报价','withdraw-quote','secondary full',`data-id="${id}"`)}`:
+        t.purchase?.status==='approved'?btn('按授权模拟购买，提交凭证','purchase','primary full',`data-id="${id}"`):btn('提交商品与报价，等待确认','quote','primary full',`data-id="${id}"`);
+    } else action=t.pickedUpAt?btn(t.handoff==='safe_drop'?'到达后，提交放置凭证':'到达后，记录当面交接','deliver-form','primary full',`data-id="${id}"`):command('确认已取到物品','pickup');
+  } else if(t.status==='delivered') action=`${notice(t.handoff==='safe_drop'?'已按授权放置并通知发布者，你可以离开，无需原地等候。报酬待对方确认后模拟结算。':'已记录交接，无需原地等待对方操作手机。模拟报酬待对方确认结算。')}${btn('继续找沿途任务','continue-runner','secondary full')}`;
+  const fullPath=shortestPath(t.runnerStartSpot||'north',pickup).nodes.concat(shortestPath(pickup,dropoff).nodes.slice(1));
+  const proof=t.deliveryProof?`<section class="delivery-proof"><div class="proof-heading"><strong>送达凭证 · ${esc(t.dropoff)}</strong><span>${date(t.deliveryProof.at)}</span></div><img src="./assets/handoff-sample.png" alt="虚构演示照片：无个人信息的纸箱放在公共交接架上" /><p>AI 生成照片样例 · 非真实拍摄 · ${esc(t.deliveryNote)}</p></section>`:'';
+  const handoffText=t.handoff==='safe_drop'?'发布前已授权：放置到指定公共交接架，通知后可离开。请尽量在提示的自取时间内取走；超时不自动免责。':'交接方式：当面交接。未获放置授权，不能擅自放下离开。';
+  openDialog(isOwner?'我的任务进度':'这段顺路的进度',`<div class="tracking-heading"><span class="live-label"><i></i>模拟位置 · 非 GPS</span><h3 data-track-title>${esc(snap.title)}</h3><p><span data-track-eta>${snap.eta}</span> · ${esc(t.title)}</p></div>${proof||mapMarkup({route:fullPath,pickup,dropoff,marker:snap.point,label:'任务配送示意地图，仅任务双方可查看'})}${trackingSteps(snap.step)}<div class="tracking-person">${avatar(r)}<div><strong>${esc(r.short)}同学 <span>同校认证 · 接单身份已开通</span></strong><p>从 ${esc(SPOTS[pickup]?.short||'取件点')} 到 ${esc(SPOTS[dropoff]?.short||'交接点')}</p></div>${textBtn('联系','chat',`data-id="${id}"`)}</div><div class="handoff-brief">${icon(t.handoff==='safe_drop'?'box':'user','sm')}<p>${handoffText}${t.pickupBy?`<br>建议自取时间：${date(t.pickupBy)} 前（演示参数）`:''}</p></div><div class="tracking-action">${action}</div><div class="tracking-links">${textBtn('约定与费用','task-details',`data-id="${id}"`)}${textBtn(t.dispute?.status==='pending'?'查看问题进度':'遇到问题','dispute-form',`data-id="${id}"`)}${textBtn('切换演示身份','demo',`data-return="${id}"`)}</div><p class="tracking-hint">地图只演示当前位置；确认取件、采购授权、送达及结算仍须对应一方操作。</p>`,{type:'tracking',id});
+  modal.querySelector('.tracking-person strong span').textContent=isOwner?'同校认证 · 接单身份已开通':'任务发布者 · 同校认证';
+  const who=document.createElement('span');who.className='tracking-who';who.textContent=`${isOwner?'接单者':'发布者'}：${r.short}同学`;
+  modal.querySelector('.tracking-heading').append(who);
+  modal.querySelector('.tracking-steps').after(modal.querySelector('.tracking-action'));
+  if(!isOwner&&!t.pickedUpAt&&!t.buy&&['accepted','progress'].includes(t.status)) {
+    const token=document.createElement('div');token.className='pickup-token';token.innerHTML=`<span>本任务的取件凭据 · 仅双方可见</span><strong>${esc(t.sensitive)}</strong><small>不能用于领取其他任务的物品，也不要转发给他人。</small>`;
+    modal.querySelector('.tracking-action').before(token);
+  }
+  ui.tracking={id,tour:false};
+}
+function trackingSteps(step) { return `<ol class="tracking-steps">${['已接单','已取件','配送中','已送达'].map((label,i)=>`<li data-track-step="${i}" class="${i<=step?'done':''}"><i>${i<step?'✓':i+1}</i><span>${label}</span></li>`).join('')}</ol>`; }
+function showTour() {
+  const s=tourSnapshot(0);
+  openDialog('24 秒，看看一段顺路怎么完成',`<div class="tracking-heading"><span class="live-label"><i></i>独立剧情演示 · 不改你的任务</span><h3 data-track-title>${s.title}</h3><p><span data-track-eta>${s.eta}</span> · 周同学正在帮林同学取包裹</p></div>${mapMarkup({route:s.nodes,pickup:'west',dropoff:'dorm3',marker:s.point})}${trackingSteps(s.step)}<div class="tour-progress"><i data-tour-progress></i></div><div class="tour-controls">${btn('暂停演示','tour-toggle','secondary small')}${btn('下一阶段','tour-next','secondary small')}${btn('重新播放','play-tour','ghost small')}</div><div class="handoff-brief">${icon('box','sm')}<p>事先授权三号楼下交接架自取。送达后记录照片、地点和时间，通知发布者，接单者无需原地等待。</p></div><section class="delivery-proof tour-proof" data-tour-proof hidden><strong>已放到三号楼下交接架 · 已通知林同学</strong><img src="./assets/handoff-sample.png" alt="AI 生成的虚构公共点放置照片样例"/><p>照片为 AI 生成样例；不代表真实包裹或真实交接架。</p></section><p class="tracking-hint">位置、时间和人物均为模拟。演示不会自动替真实任务确认取件或结算。</p>`,{type:'tour'});
+  ui.tracking={tour:true,elapsed:0,last:performance.now(),paused:window.matchMedia('(prefers-reduced-motion: reduce)').matches};
+  if(ui.tracking.paused) modal.querySelector('[data-action="tour-toggle"]').textContent='继续演示';
+}
+function animateTracking(now) {
+  const tr=ui.tracking;
+  if(tr&&modal.open&&['tracking','tour'].includes(ui.dialog?.type)) {
+    let s;
+    if(tr.tour) {
+      if(!tr.paused) tr.elapsed=Math.min(24000,tr.elapsed+Math.max(0,Math.min(200,now-tr.last)));
+      tr.last=now; s=tourSnapshot(tr.elapsed);
+      const proof=modal.querySelector('[data-tour-proof]'); if(proof) proof.hidden=tr.elapsed<24000;
+      const bar=modal.querySelector('[data-tour-progress]'); if(bar) bar.style.width=`${100*s.fraction}%`;
+      if(tr.elapsed>=24000) {tr.paused=true;const b=modal.querySelector('[data-action="tour-toggle"]');if(b)b.textContent='已完成';}
+    } else { const t=getTask(tr.id); if(t)s=trackingSnapshot(t,Date.now(),state.actor); }
+    if(s) {
+      const g=modal.querySelector('[data-map-marker]');
+      const name=tr.tour?'周':state.users[getTask(tr.id)?.runner]?.short||'同';
+      if(g) g.innerHTML=`<circle cx="${s.point.x}" cy="${s.point.y}" r="21" fill="#35442e" opacity=".14"/><circle cx="${s.point.x}" cy="${s.point.y}" r="12" fill="#35442e" stroke="white" stroke-width="3"/><text x="${s.point.x}" y="${s.point.y+4}" text-anchor="middle" class="map-person-letter" fill="white">${esc(name)}</text><rect x="${s.point.x-30}" y="${s.point.y-35}" width="60" height="18" rx="8" fill="#35442e"/><text x="${s.point.x}" y="${s.point.y-22}" text-anchor="middle" class="map-person-label" fill="white">${esc(name)}同学</text>`;
+      const title=modal.querySelector('[data-track-title]'),eta=modal.querySelector('[data-track-eta]');
+      if(title&&title.textContent!==s.title)title.textContent=s.title;
+      if(eta&&eta.textContent!==s.eta)eta.textContent=s.eta;
+      modal.querySelectorAll('[data-track-step]').forEach(li=>li.classList.toggle('done',Number(li.dataset.trackStep)<=s.step));
+    }
+  }
+  requestAnimationFrame(animateTracking);
+}
+requestAnimationFrame(animateTracking);
+function runnerOnboard(returnId=null) {
+  if(!requireAuth(returnId?{id:returnId}:{type:'runner'}))return;
+  const u=userOf(state);
+  if(u.runnerEnabled) { if(returnId)showTask(returnId);else openDialog('我的接单身份',`${notice('演示接单身份已开通，在校认证仍须保持有效。','', 'shield')}<div class="auth-result"><h3>${esc(u.short)}同学 · 可以顺路接单</h3><p>南城大学 · ${esc(authName(u))}<br>具体任务由发布者与接单者绑定，不能领取其他人的物品。</p></div>${btn('查看沿途任务','continue-runner','primary full')}`,{type:'runner-status'});return; }
+  openDialog('开通接单身份',`<p class="description">在校认证证明你属于本校；接单身份说明你愿意遵守取件、交接与费用约定。它不代表你能领取任何人的物品。</p><form id="runner-form" ${returnId?`data-id="${returnId}"`:''}><div class="help-grid"><div class="help-item"><b>先看顺路，再接单</b>接单前确认取送点、额外绕行、期限和报酬。一次最多运输一项，已记录送达的任务不要求你原地等待。</div><div class="help-item"><b>只取你接下的那一单</b>具体任务绑定双方，取件凭据仅向本任务接单者开放，不能转交或截取其他同学凭据。</div><div class="help-item"><b>按约定交接，留下必要凭证</b>未经发布者事先授权，不能擅自放置。已授权的指定公共点可记录凭证、通知后离开；异常须协商处理。</div></div><label class="check-row"><input type="checkbox" required name="agree"/><span>我理解任务与交接规范，具备履约条件，愿意按每个任务的约定完成。这只是演示开通，不是官方资格证书。</span></label><button type="submit" class="btn primary full">确认，开通演示接单身份</button></form>`,{type:'runner-onboard',id:returnId});
 }
 function purchaseStatus(t) {
   if (t.status === 'completed') return '商品、凭证与收货已确认 · 模拟结算已记录';
@@ -201,6 +290,7 @@ function showAuth() {
 function authReturn() {
   const next = ui.afterAuth; ui.afterAuth = null;
   if (next?.type === 'publish') showPublish();
+  else if(next?.type==='runner') runnerOnboard();
   else if (next?.id) showTask(next.id);
   else closeDialog();
 }
@@ -241,9 +331,29 @@ function showPublish(values = null, editId = null) {
   const source = editId ? getTask(editId) : null;
   const d = values || (source ? { ...source, reward: money(source.reward), budget: money(source.budget), deadline: localInputDate(source.deadline) } : loadDraft());
   openDialog('发布一份校园里的小事', `<p class="description">清楚的约定，是放心互助的开始。仅限本校公共场所交接。</p><form id="publish-form"><div class="form-grid"><label class="field full"><span>任务标题</span><input name="title" value="${esc(d.title || '')}" required maxlength="40" placeholder="例如：帮我从食堂带一份午餐" /></label><label class="field"><span>任务类别</span><select name="category">${Object.entries(CATEGORIES).filter(([key]) => key !== 'all').map(([key, c]) => `<option value="${key}" ${d.category === key ? 'selected' : ''}>${c.name}</option>`).join('')}</select></label><label class="field"><span>最晚完成时间</span><input name="deadline" type="datetime-local" required value="${esc(d.deadline || localInputDate(Date.now() + 3600000))}" min="${localInputDate(Date.now())}" /></label><label class="field"><span>取件 / 购买地点</span><input name="pickup" required maxlength="60" value="${esc(d.pickup || '')}" placeholder="例如：第一食堂 · 一楼" /></label><label class="field"><span>公共交接地点</span><input name="dropoff" required maxlength="60" value="${esc(d.dropoff || '')}" placeholder="例如：设计楼 · 公共大厅" /></label><label class="field full"><span>物品 / 商品规格与数量</span><input name="item" required maxlength="150" value="${esc(d.item || '')}" placeholder="例如：鸡腿饭 × 1，少辣、不加香菜" /></label><label class="field full"><span>任务说明</span><textarea name="description" required maxlength="300" placeholder="说明取件时间、重量体积、特殊要求；不填写真实取件码、手机号或宿舍房间。">${esc(d.description || '')}</textarea></label><label class="field"><span>跑腿报酬 / 元</span><input name="reward" type="number" min="0.01" max="100" step="0.01" required value="${esc(d.reward || '')}" inputmode="decimal" placeholder="例如：5" /><small>正数，上限 ¥100，为演示参数。</small></label><label class="field"><span>商品垫付上限 / 元</span><input name="budget" type="number" min="0.01" max="200" step="0.01" value="${esc(d.budget || '')}" inputmode="decimal" placeholder="仅代买需填写" ${d.buy ? 'required' : 'disabled'} /><small>与报酬分开，最高 ¥200。</small></label></div><label class="check-row"><input type="checkbox" name="buy" ${d.buy ? 'checked' : ''} /><span>需要接单同学代买并垫付商品款，购买前必须由我确认商品与报价；换品或超预算重新确认。</span></label>${notice('禁止代考、代刷、代写、违规占座及危险物品。代买仅限普通餐品和低价日用品。请勿填写真实个人敏感信息。')}<label class="check-row"><input type="checkbox" name="agreement" required /><span>我已确认任务符合互助范围，物品轻小、可由一位同学携带，并理解所有费用仅为模拟。</span></label><div class="form-error error-hidden" role="alert"></div><button class="btn primary full" type="submit">下一步，确认约定与模拟预付</button><p class="seed-note">草稿会保存在当前身份、当前浏览器中。暂不发送给真实用户。</p></form>`, { type: 'publish' });
+  enhancePublishForm(d,source);
+}
+function enhancePublishForm(values={},source=null) {
+  const form=modal.querySelector('#publish-form'); if(!form)return;
+  for(const name of ['pickup','dropoff']) {
+    const old=form.elements[name],selected=identifySpot(values[name]||''),select=document.createElement('select');
+    select.name=name; select.required=true;
+    select.innerHTML=`<option value="">选择校内公共${name==='pickup'?'取件':'交接'}点</option>`+Object.entries(SPOTS).map(([id,p])=>`<option value="${p.name}" ${id===selected?'selected':''}>${p.name}</option>`).join('');
+    old.replaceWith(select);
+  }
+  const group=document.createElement('div'); group.className='handoff-choice';
+  group.innerHTML=`<label class="field"><span>怎么交接？</span><select name="handoff" aria-label="交接方式"><option value="meet" ${values.handoff!=='safe_drop'?'selected':''}>当面交接 · 约定公共点碰面</option><option value="safe_drop" ${values.handoff==='safe_drop'?'selected':''}>指定交接架自取 · 事先授权放置</option></select></label><label class="check-row handoff-consent" ${values.handoff!=='safe_drop'?'hidden':''}><input type="checkbox" name="dropConsent" ${values.dropConsent?'checked':''} ${values.handoff==='safe_drop'?'required':''}/><span>我授权将物品放到所选指定交接架。接单者记录放置凭证并通知我后可离开；我会及时自取，丢失或放置争议不由倒计时自动判责。</span></label><p class="field-hint">自取仅支持图书馆、设计楼及二/三号楼下的演示交接架。不承诺真实监控或值守。</p>`;
+  form.querySelector('.form-grid').after(group);
+  // Keep required decisions visible; optional prose does not block a quick, clear request.
+  const optional=document.createElement('details'); optional.className='optional-fields';optional.innerHTML='<summary>补充标题和说明（可选）</summary>';
+  for(const name of ['title','description']) {form.elements[name].required=false;optional.append(form.elements[name].closest('.field'));}
+  group.after(optional);
+  if(!source&&!values.reward) form.elements.reward.value='2';
 }
 function publishPreview(form) {
   const values = Object.fromEntries(new FormData(form)); values.buy = form.elements.buy.checked;
+  if(!values.title?.trim()) values.title=`${CATEGORIES[values.category].name}：${SPOTS[identifySpot(values.pickup)]?.short||'取件点'} → ${SPOTS[identifySpot(values.dropoff)]?.short||'交接点'}`;
+  if(!values.description?.trim()) values.description=`${values.item}。请按已确认的时间、公共地点和交接方式完成。${values.buy?'购买前先确认商品及报价。':''}`;
   saveDraft(); ui.draft = values;
   const editId = ui.dialog.editId;
   const command = editId ? 'edit' : 'create';
@@ -253,6 +363,7 @@ function publishPreview(form) {
     const preview = editId ? proposed.tasks.find(t => t.id === editId) : proposed.tasks[0];
     openDialog('确认约定与模拟预付', `<div class="detail-top"><div><span class="pill">发布前最后确认</span><h3>${esc(preview.title)}</h3></div></div><p class="description">${esc(preview.description)}<br><br>${esc(preview.item)}<br>取：${esc(preview.pickup)}<br>送：${esc(preview.dropoff)}<br>最晚：${date(preview.deadline)}</p><div class="summary-box">${moneyTable(preview)}<p class="seed-note">${preview.buy ? '商品预算上限 + 跑腿报酬；收货后凭实际费用结算，多余预算退回。' : '无需商品垫付，仅模拟预付跑腿报酬。'}</p></div>${notice('点击确认只产生演示任务和模拟费用记录，不发生真实扣款。')}<div class="modal-actions">${btn('返回修改', 'publish-back', 'secondary')}${btn(`模拟预付 ¥${money(preview.prepaid)} 并发布`, 'publish-confirm')}</div>`, { type: 'publish-preview', payload });
     ui.dialog.command = command; ui.dialog.editId = editId;
+    modal.querySelector('.description').insertAdjacentHTML('beforeend',`<br>交接：${preview.handoff==='safe_drop'?'已明确授权指定公共交接架自取；凭证通知后接单者可离开':'当面交接，不允许擅自放置'}`);
     if (editId) {
       modal.querySelector('#modal-title').textContent = '确认任务修改与模拟预算';
       modal.querySelector('[data-action="publish-confirm"]').textContent = '确认修改并更新模拟预算';
@@ -273,9 +384,11 @@ function taskForm(kind, id) {
     if (t.purchase?.status !== 'approved') { toast('报价尚未得到确认'); return showTask(id); }
     form('模拟购买 / 提交凭证', `${notice('仅能购买本次已确认的商品，实际费用不能超过授权报价。此处不发生真实购买。')}<div class="summary-box"><p class="description">${esc(t.purchase.item)}<br>已授权商品报价 ¥${money(t.purchase.amount)}</p></div>${field('实际商品支出 / 元', 'amount', money(t.purchase.amount), 'number', `min="0.01" max="${money(t.purchase.amount)}" step="0.01" inputmode="decimal"`)}${area('虚构购物凭证说明', 'receipt', '例如：演示小票 NC-102，鸡腿饭 1 份，实付 26 元。不要填写真实订单或上传敏感资料。')}<label class="check-row"><input type="checkbox" required /><span>商品和数量与确认内容一致；虚构凭证金额与实际支出字段一致。</span></label>`, '记录模拟购买与凭证', 'buy');
   } else if (kind === 'deliver') {
-    form('把小事，送到下一站', `${notice('请在约定的公共地点交接，不进入宿舍房间，不拍摄人脸或私人空间。')}${area('交接说明', 'note', '例如：已在图书馆南门当面交接，请核对物品。此处为模拟交接。')}`, '提交送达，等对方确认');
+    if(t.handoff==='safe_drop') {
+      form('放到约定点，留凭证就能离开',`${notice('发布者已事先授权指定交接架放置。核对位置、记录凭证并通知对方后，无需原地等待。')}<label class="field"><span>本任务唯一授权的放置点</span><select name="spot"><option value="${t.dropoffSpot}">${esc(t.dropoff)}</option></select></label><input type="hidden" name="proof" value=""/><div class="sample-photo" hidden><img src="./assets/handoff-sample.png" alt="AI 生成的虚构包裹放置照片样例"/><p>AI 生成样例 · 非真实拍摄，不包含真实身份与取件信息</p></div>${btn('模拟拍照，使用虚构凭证样例','sample-photo','secondary full')}${area('补充放置说明','note','例如：已放至三号楼下约定交接架，请及时取走（演示）。')}<label class="check-row"><input type="checkbox" required/><span>我已核对授权地点和物品。凭证仅供双方查看；未按约定放置不能因倒计时结束自动免责。</span></label>`,'记录送达并通知对方','deliver');
+    } else form('记录当面交接', `${notice('此任务未授权自行放置。请在约定公共点当面交接，不进入宿舍，不拍摄私人空间。')}${area('交接说明', 'note', '例如：已在图书馆南门当面交接，请核对物品。此处为模拟交接。')}`, '提交交接，等对方确认','deliver');
   } else if (kind === 'cancel') {
-    if (t.purchase?.bought || t.status === 'delivered') return taskForm('dispute', id);
+    if (t.pickedUpAt || t.purchase?.bought || t.status === 'delivered') return taskForm('dispute', id);
     form('先沟通，再取消', `${notice('接单后须由另一方确认取消。申请处理中暂不继续履约或结算；已购买的任务需先处理物品与费用。', 'warning')}${area('取消原因', 'reason', '说明为什么无法继续履约；不要包含真实个人信息。')}`, '向另一方提出取消申请', 'requestCancel');
   } else if (kind === 'change') {
     form('变更公共交接地点', `${notice('新地点必须由另一方确认。确认前保留原地点，暂不继续采购或提交送达。')}<p class="section-caption">原地点：${esc(t.dropoff)}</p>${field('新公共交接地点', 'dropoff', '', 'text', 'maxlength="60"')}${area('变更原因', 'reason', '例如：临时调课，希望改在教学楼公共大厅交接。')}`, '提交变更，等待确认');
@@ -303,9 +416,22 @@ function confirmPanel(title, text, label, action, id, extra = '') {
 }
 
 document.addEventListener('click', e => {
+  const hub=e.target.closest('[data-action="map-hub"]');
+  if(hub) {ui.hub=hub.dataset.spot||null;render();return;}
   const b = e.target.closest('button[data-action]'); if (!b || b.disabled) return;
   const a = b.dataset.action, id = b.dataset.id, t = id ? getTask(id) : null;
   switch (a) {
+    case 'mode': ui.mode=b.dataset.mode;ui.hub=null;ui.category='all';ui.query='';render();break;
+    case 'swap-route': [ui.from,ui.to]=[ui.to,ui.from];ui.hub=null;render();break;
+    case 'widen-route': ui.detour=800;ui.hub=null;render();break;
+    case 'continue-runner': ui.mode='runner';navigate('square');break;
+    case 'runner-onboard': runnerOnboard(id);break;
+    case 'track': showTracking(id);break;
+    case 'task-details': ui.forceDetails=true;showTask(id);ui.forceDetails=false;break;
+    case 'play-tour': showTour();break;
+    case 'tour-toggle': if(ui.tracking?.tour){if(ui.tracking.elapsed>=24000){showTour();break;}ui.tracking.paused=!ui.tracking.paused;ui.tracking.last=performance.now();b.textContent=ui.tracking.paused?'继续演示':'暂停演示';}break;
+    case 'tour-next': if(ui.tracking?.tour){const tr=ui.tracking;tr.elapsed=tr.elapsed<8400?8400:tr.elapsed<18000?18000:24000;tr.last=performance.now();}break;
+    case 'sample-photo': {const f=b.closest('form');f.elements.proof.value='sample';f.querySelector('.sample-photo').hidden=false;b.textContent='重新使用虚构照片样例';break;}
     case 'nav': navigate(b.dataset.page); break;
     case 'to-square': navigate('square'); break;
     case 'close': closeDialog(); break;
@@ -337,6 +463,7 @@ document.addEventListener('click', e => {
       const payload = ui.dialog.payload;
       const command = ui.dialog.command || 'create';
       if (run(command, payload, command === 'edit' ? '任务修改与模拟预算已更新' : '任务已发布，模拟预付已记录')) {
+        ui.mode='request';
         try { localStorage.removeItem(`${DRAFT_KEY}:${state.actor}`); } catch { /* no storage */ }
         ui.draft = null; ui.mine = 'published'; ui.status = 'all'; ui.page = 'mine'; showTask(command === 'edit' ? payload.id : state.tasks[0].id); render();
       }
@@ -357,9 +484,11 @@ document.addEventListener('click', e => {
     case 'reports': showReports(); break;
     case 'read': run('read', {}, '当前身份的消息已标记已读'); break;
     case 'accept':
-      if (requireAuth({ id })) confirmPanel('接下这份托付之前', `请确认能在 ${date(t.deadline)} 前完成，交接点为 ${esc(t.dropoff)}。${t.buy ? `商品垫付上限 ¥${money(t.budget)}，报酬 ¥${money(t.reward)}。购买前先提交报价并等待发布者确认。` : `无需商品垫付，报酬 ¥${money(t.reward)}。`}演示最多同时接一项任务。`, '我能完成，确认接单', 'accept-confirm', id);
+      if (!requireAuth({ id }))break;
+      if(!userOf(state).runnerEnabled){runnerOnboard(id);break;}
+      confirmPanel('接下这份顺路之前', `请确认能在 ${date(t.deadline)} 前完成，交接点为 ${esc(t.dropoff)}。${t.buy ? `商品垫付上限 ¥${money(t.budget)}，报酬 ¥${money(t.reward)}。购买前先提交报价并等待发布者确认。` : `无需商品垫付，报酬 ¥${money(t.reward)}。`}${t.handoff==='safe_drop'?'发布者已授权指定交接架放置，记录凭证并通知后可离开。':'需要当面交接，不允许擅自放下。'}最多同时运输一项。`, '我能完成，确认接单', 'accept-confirm', id);
       break;
-    case 'accept-confirm': if (run('accept', { id }, '接单成功，必要的取件信息已开放')) showTask(id); break;
+    case 'accept-confirm': if (run('accept', { id,from:ui.from }, '接单成功，必要的取件信息已开放')) showTask(id); break;
     case 'command': if (run(b.dataset.command, { id }, '任务进度已更新')) showTask(id); break;
     case 'quote': taskForm('quote', id); break;
     case 'withdraw-quote': if (run('withdrawQuote', { id }, '旧授权已撤回')) taskForm('quote', id); break;
@@ -398,6 +527,7 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('submit', e => {
   const form = e.target; e.preventDefault();
+  if(form.id==='runner-form') {const id=form.dataset.id;if(run('enableRunner',{agree:form.elements.agree.checked},'演示接单身份已开通')){if(id)showTask(id);else{closeDialog();ui.mode='runner';render();}}return;}
   if (form.id === 'auth-form') { if (run('auth', { status: 'pending' }, '演示材料已提交')) showAuth(); return; }
   if (form.id === 'publish-form') { publishPreview(form); return; }
   if (form.dataset.taskForm) {
@@ -412,6 +542,9 @@ document.addEventListener('input', e => {
   if (e.target.closest('#publish-form')) saveDraft();
 });
 document.addEventListener('change', e => {
+  if(['route-from','route-to','route-detour'].includes(e.target.id)) {const id=e.target.id;ui[id==='route-from'?'from':id==='route-to'?'to':'detour']=id==='route-detour'?Number(e.target.value):e.target.value;ui.hub=null;render();document.getElementById(id)?.focus();return;}
+  if(e.target.name==='handoff'&&e.target.closest('#publish-form')) {const f=e.target.form,safe=e.target.value==='safe_drop';f.querySelector('.handoff-consent').hidden=!safe;f.elements.dropConsent.required=safe;saveDraft();}
+  if(e.target.name==='dropoff'&&e.target.closest('#publish-form')) {e.target.form.elements.dropConsent.checked=false;saveDraft();}
   if (e.target.id === 'sort-select') { ui.sort = e.target.value; document.querySelector('#feed-content').innerHTML = feedContent(); }
   if (e.target.name === 'buy' && e.target.closest('#publish-form')) { const input = modal.querySelector('[name="budget"]'); input.disabled = !e.target.checked; input.required = e.target.checked; saveDraft(); }
 });
@@ -419,6 +552,7 @@ modal.addEventListener('cancel', e => { e.preventDefault(); closeDialog(); });
 modal.addEventListener('click', e => { if (e.target === modal && e.clientX < modal.getBoundingClientRect().left) closeDialog(); });
 function navigate(page) {
   closeDialog(); ui.page = ['square', 'mine', 'messages', 'me'].includes(page) ? page : 'square';
+  if(ui.page==='mine') ui.mine=ui.mode==='runner'?'accepted':'published';
   history.pushState(null, '', `#${ui.page}`); render(); window.scrollTo({ top: 0, behavior: 'instant' });
 }
 function route() {
