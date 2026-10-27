@@ -3,28 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="校园带跑项目交互 Demo，目前正在筹备中。" />
-    <meta name="theme-color" content="#15281f" />
-    <title>校园带跑 · 项目筹备中</title>
-    <style>
-      * { box-sizing: border-box; }
-      body { margin: 0; min-height: 100vh; min-height: 100svh; display: grid; place-items: center; padding: 28px; background: #f4f5ef; color: #15281f; font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; }
-      main { width: min(100%, 860px); padding: clamp(28px, 7vw, 72px); background: #fff; border: 1px solid #e1e6dc; border-radius: 28px; }
-      .brand { margin: 0 0 56px; font-size: 15px; font-weight: 700; letter-spacing: .12em; }
-      .status { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 100px; background: #edf4e3; color: #45632c; font-size: 13px; }
-      .status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #719c47; }
-      h1 { margin: 24px 0; font-size: clamp(36px, 7vw, 64px); line-height: 1.2; letter-spacing: -.04em; }
-      .intro { margin: 0; color: #637168; font-size: 17px; line-height: 1.9; }
-      footer { margin-top: 64px; padding-top: 24px; border-top: 1px solid #e9ede5; color: #788279; font-size: 13px; line-height: 1.8; }
-    </style>
+    <meta name="description" content="校园跑腿互助平台交互演示。同校认证、顺路接单、限额代买，让校园里的小事有回应。" />
+    <meta name="theme-color" content="#f8f9f7" />
+    <title>同路 · 校园跑腿互助</title>
+    <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
+    <link rel="stylesheet" href="./styles.css" />
+    <script type="module" src="./app.js"></script>
   </head>
   <body>
-    <main>
-      <p class="brand">校园带跑 / CAMPUS RUNNING</p>
-      <span class="status">项目筹备中</span>
-      <h1>新的校园体验，<br />即将从这里开始。</h1>
-      <p class="intro">校园带跑交互 Demo 正在筹备中。<br />后续体验将在这里上线，欢迎再次访问。</p>
-      <footer>收藏这个地址，未来的项目更新都在这里。</footer>
-    </main>
+    <div id="app"></div>
+    <dialog id="modal" aria-labelledby="modal-title"></dialog>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <noscript>请启用 JavaScript 后体验校园互助 Demo。此网站不发生真实付款。</noscript>
   </body>
 </html>
