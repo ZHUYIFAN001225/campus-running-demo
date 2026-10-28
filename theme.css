@@ -1,0 +1,264 @@
+/*
+  同路 · 深色主题（最后加载，覆盖前面所有样式表的颜色）
+  参考：X / Pinterest 的深色界面——黑灰分层、白色胶囊按钮、细线分隔；
+  地图参考深色石板地图——街区纹理、路网暗、只有“你的路线”和地图点用一种柔和的紫色。
+  只改外观，不改交互与数据。待取需求使用红色，与配送位置区分。
+*/
+:root{
+  color-scheme:dark;
+  --bg:#111215;--bg-2:#17191d;--panel:#1c1e23;--panel-2:#23262c;--panel-3:#2b2e35;
+  --hair:#2a2d33;--hair-2:#34373e;
+  --fg:#f2f3f5;--fg-2:#b6bac2;--fg-3:#7d828c;--fg-4:#5b6069;
+  --accent:#9b8cff;--accent-2:#7c6cf0;--accent-soft:#9b8cff26;
+  --warn:#f0a35e;--danger:#f07c6c;--danger-soft:#f07c6c1f;
+  --on-light:#0f1012;
+  /* 映射到旧变量，让既有组件自动跟随 */
+  --paper:var(--bg);--surface:var(--panel);--well:var(--panel-2);
+  --ink:var(--fg);--ink-2:var(--fg-2);--mute:var(--fg-3);--faint:var(--fg-4);
+  --rule:var(--hair-2);--rule-soft:var(--hair);
+  --moss:var(--accent);--moss-ink:var(--accent);--moss-tint:var(--accent-soft);
+  --amber:var(--warn);--amber-tint:#f0a35e1f;--red:var(--danger);--red-tint:var(--danger-soft);
+  --line:var(--hair-2);--muted:var(--fg-3);--soft:var(--panel-2);--green:var(--accent);--sage:var(--panel-2);
+  --r-sheet:24px;--r-panel:20px;--r-card:16px;--r-ctl:999px;--r-tile:8px;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","HarmonyOS Sans SC","MiSans","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+  --num:-apple-system,"SF Pro Display","Helvetica Neue","Segoe UI",Arial,var(--sans);
+  background:var(--bg);color:var(--fg);font-family:var(--sans);
+}
+html,body{background:var(--bg);color:var(--fg)}
+body{-webkit-font-smoothing:antialiased}
+::selection{background:var(--accent);color:#fff}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+input,select,textarea{color:var(--fg);background:var(--panel-2);border-color:var(--hair-2)}
+select option{background:var(--panel);color:var(--fg)}
+::placeholder{color:var(--fg-4)}
+
+/* ---------- 外壳：像 X 一样，黑底、细线、无多余装饰 ---------- */
+.sidebar{background:var(--bg);border-right:1px solid var(--hair)}
+.topbar{background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-bottom:1px solid var(--hair);position:sticky;top:0;z-index:30}
+.brand,.brand-name{color:var(--fg)}
+.brand>svg{color:var(--fg)}
+.brand>svg rect{fill:var(--fg)}
+.brand>svg path{stroke:var(--bg)}
+.brand>svg circle,.brand>svg rect+path+circle{fill:var(--bg)}
+.brand-sub{color:var(--fg-3)}
+.campus-switch{color:var(--fg-2)}
+.campus-switch .icon{color:var(--fg-2)}
+.campus-switch>span:last-child{background:var(--panel-2);color:var(--fg-3)}
+.nav-link{color:var(--fg-3);border-radius:999px;font-size:16px}
+.nav-link:hover{background:var(--panel);color:var(--fg)}
+.nav-link.active{background:transparent;color:var(--fg);font-weight:700}
+.nav-link.active .icon{stroke-width:2.3}
+.nav-link.active .count-dot{background:var(--accent);color:#fff}
+.count-dot{background:var(--accent);color:#fff}
+.notification-dot{background:var(--accent);border-color:var(--bg)}
+.icon-btn{color:var(--fg)}
+.icon-btn:hover{background:var(--panel)}
+.id-chip{background:var(--panel);border:1px solid var(--hair-2)}
+.id-chip:hover{border-color:var(--fg-3)}
+.id-text b{color:var(--fg)}
+.id-text small{color:var(--fg-3)}
+.id-switch{background:var(--panel-3);color:var(--fg)}
+.avatar,.avatar.dark{background:var(--panel-3);color:var(--fg);box-shadow:inset 0 0 0 1px var(--hair-2)}
+.bottom-nav{background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-top:1px solid var(--hair)}
+.bottom-item{color:var(--fg-3)}
+.bottom-item.active{color:var(--fg)}
+.page-footer{border-top:1px solid var(--hair);color:var(--fg-4)}
+#toast{background:var(--fg);color:var(--on-light);border-radius:999px;font-weight:600}
+
+/* ---------- 文字 ---------- */
+h1,h2,h3{color:var(--fg)}
+.simple-heading h1,.page-heading h1,.market-location h1,.request-map-heading h1{color:var(--fg);font-weight:800;letter-spacing:-.02em}
+.simple-heading p,.page-heading p,.eyebrow,.market-location .eyebrow{color:var(--fg-3)}
+.description,.section-caption,.seed-note,.field-hint,.market-help,.market-map-note,.tracking-hint{color:var(--fg-3)}
+
+/* ---------- 按钮：白色胶囊为主，描边胶囊为次 ---------- */
+.btn{border-radius:999px;font-weight:700}
+.btn.primary{background:var(--fg);color:var(--on-light);border-color:var(--fg)}
+.btn.primary:hover{background:#fff}
+.btn.primary .icon{color:var(--on-light)}
+.btn.secondary,.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--hair-2)}
+.btn.secondary:hover,.btn.ghost:hover{background:var(--panel);border-color:var(--fg-3)}
+.btn.danger{background:var(--danger-soft);color:var(--danger)}
+.text-btn{color:var(--fg);text-decoration-color:var(--fg-4)}
+.pin-link{color:var(--fg-2)}
+
+/* 所有“选中”的胶囊：白底黑字，像 X 的标签 */
+.category.active,.status-filter.active,.hub-buttons button.selected,.scope-switch .selected,.scope-switch button.selected,.scope-switch button[aria-pressed="true"],
+.market-filter .selected,.map-pick-bar .selected,.quick-time .selected,.quick-price .selected,.auth-step.active b{background:var(--fg)!important;color:var(--on-light)!important;border-color:var(--fg)!important}
+.market-filter .selected.urgent{background:var(--danger)!important;color:#fff!important;border-color:var(--danger)!important}
+.status-filter,.hub-buttons button,.category,.market-filter button,.map-pick-bar button,.quick-time button,.quick-price button,.auth-mini-actions button{background:transparent;border:1px solid var(--hair-2);color:var(--fg-2);border-radius:999px}
+.scope-switch{background:var(--panel);border:1px solid var(--hair-2);border-radius:999px}
+.scope-switch button{border-radius:999px;color:var(--fg-3)}
+
+/* ---------- 顶部双入口：X 的标签样式 ---------- */
+.mode-switch,.market-modes{border-bottom:1px solid var(--hair)}
+.mode-switch button{color:var(--fg-3)}
+.mode-switch button.selected{background:transparent!important;color:var(--fg)}
+.mode-switch button.selected small{color:var(--fg-3)}
+.mode-switch button.selected:after{background:var(--accent);height:4px;border-radius:4px;left:0;right:auto;width:56px}
+
+/* ---------- 面板与卡片：灰度分层，不用粗边框 ---------- */
+.request-prompt,.route-planner,.route-plan-summary,.optional-route,.quick-publish,.wallet-stats section,.wallet-explain,.profile-hero,.profile-stats,.menu-card,.empty,.market-empty,.auth-banner,.qualification-nudge,.tour-preview,.rail-card,.search-box,.actor-option,.place-picker,.route-example{background:var(--panel)!important;border:1px solid var(--hair)!important;color:var(--fg)}
+.request-prompt,.route-planner,.route-plan-summary,.optional-route,.quick-publish,.wallet-explain,.profile-hero,.profile-stats,.menu-card{border-radius:var(--r-panel)}
+.market-location>button,.gate-compare button,.route-optional,.map-tools button,.detour-inline select,.optional-route-fields select{background:var(--panel-2)!important;border:1px solid var(--hair-2)!important;color:var(--fg)!important}
+.gate-compare button{border-radius:var(--r-card)}
+.gate-compare span{color:var(--fg-2)}
+.gate-compare b{color:var(--fg)}
+.gate-compare small{color:var(--fg-3)}
+.route-optional.on{border-color:var(--accent)!important;color:var(--accent)!important}
+.notice{background:var(--panel-2);border-left-color:var(--hair-2);color:var(--fg-2)}
+.notice.warning{background:var(--amber-tint);border-left-color:var(--warn);color:#f3c79e}
+.route-applied,.active-run-link,.own-request-link{background:var(--accent-soft)!important;border:1px solid #9b8cff40!important;color:var(--fg)!important;border-radius:var(--r-card)!important}
+.route-applied button,.active-run-link *,.own-request-link *{color:var(--fg)}
+
+/* 信息流：X 式的细线列表 */
+.market-task-list{gap:12px}
+.market-task,.route-task-card,.task-card,.pending-row{background:var(--panel)!important;border:1px solid var(--hair)!important;border-radius:var(--r-card)!important;color:var(--fg)}
+.market-task:hover,.route-task-card:hover,.task-card:hover,.pending-row:hover{border-color:var(--hair-2)!important;background:var(--panel-2)!important}
+.market-task.chosen{border-color:var(--accent)!important;box-shadow:inset 0 0 0 1px var(--accent)!important}
+.market-task-top>span,.market-task-destination>span,.market-task-info>p{color:var(--fg-3)}
+.market-task-top strong,.route-task-top strong,.pending-row b,.now-row b{color:var(--fg);font-family:var(--num)}
+.market-task-destination b{color:var(--fg)}
+.market-task-info>small{color:var(--danger)}
+.market-task-actions{border-top:1px solid var(--hair)}
+.market-task-actions button{color:var(--fg-3)}
+.market-task-actions button:last-child{background:var(--panel-3);color:var(--fg);border-radius:999px;padding:7px 14px}
+.market-task-actions button.selected{background:var(--accent)!important;color:#fff!important}
+.urgent-tag{background:var(--danger-soft);color:var(--danger)}
+.pill{background:var(--panel-3);color:var(--fg-2)}
+.route-task-card>p,.route-task-bottom,.route-task-path{color:var(--fg-3)}
+.route-task-bottom{border-top-color:var(--hair)}
+.route-dot{background:var(--panel);border-color:var(--fg)}
+.route-dot.destination{background:var(--fg)}
+.route-task-path:before{background:var(--hair-2)}
+.card-tags span{background:var(--panel-3);color:var(--fg-3)}
+.category-icon{background:var(--panel-3);color:var(--fg)}
+.current-task{background:var(--panel)!important;border:1px solid var(--hair-2)!important;box-shadow:inset 3px 0 0 var(--accent)!important;color:var(--fg)}
+.current-task>p,.compact-route{color:var(--fg-2)}
+.compact-route{background:var(--panel-2)}
+.live-label{color:var(--fg)}
+.live-label i{background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+.runner-active{background:var(--panel)!important;border:1px solid var(--accent)!important;color:var(--fg)}
+.runner-active span{color:var(--fg-3)}
+
+/* 底部浮条（已选任务） */
+.carry-tray{background:var(--fg)!important;color:var(--on-light)!important;border-radius:var(--r-panel);box-shadow:0 18px 50px -10px #000c}
+.carry-tray b{color:var(--on-light)}
+.carry-tray span{color:#55595f!important}
+.carry-tray .btn{background:var(--on-light)!important;color:var(--fg)!important;border-color:var(--on-light)!important}
+
+/* 表单 */
+.field input,.field select,.field textarea,input[type=text],input[type=number],input[type=datetime-local],textarea,select{background:var(--panel-2);border:1px solid var(--hair-2);color:var(--fg);border-radius:12px}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--fg-3)}
+.field label,.field>span,.check-row{color:var(--fg-2)}
+.optional-fields summary{color:var(--fg-2)}
+.form-error{background:var(--danger-soft);color:var(--danger)}
+
+/* ---------- 弹层：底部抽屉 ---------- */
+dialog,dialog#modal,dialog.place-picker{background:var(--panel)!important;color:var(--fg);border:1px solid var(--hair-2)!important;border-radius:var(--r-sheet)!important;box-shadow:0 40px 120px -20px #000}
+dialog::backdrop,dialog#modal::backdrop,dialog.place-picker::backdrop{background:#000000a8;backdrop-filter:blur(4px)}
+.modal-head{background:var(--panel)!important;border-bottom:1px solid var(--hair)!important}
+.modal-head h2{color:var(--fg)}
+.summary-box,.money-table,.route-preview-metrics span,.handoff-brief,.delivery-proof,.help-item,.cert-sample,.bubble{background:var(--panel-2)!important;color:var(--fg-2)}
+.route-preview-metrics b{color:var(--fg)}
+.money-table td{color:var(--fg)}
+.money-table td:first-child{color:var(--fg-3)}
+.help-item b{color:var(--fg)}
+.bubble-row.mine .bubble{background:var(--fg)!important;color:var(--on-light)}
+.detail-top .pill{background:var(--accent-soft);color:var(--accent)}
+.actor-option.selected{border-color:var(--fg)!important;box-shadow:none}
+.actor-option strong{color:var(--fg)}
+.pickup-token{background:transparent;border:1.5px dashed var(--fg-4)}
+.pickup-token strong{color:var(--fg)}
+.tracking-steps li{border-top-color:var(--hair-2);color:var(--fg-4)}
+.tracking-steps li.done{border-top-color:var(--accent);color:var(--fg)}
+.tracking-heading>p>span,.tracking-who{color:var(--fg-2)}
+.tracking-person{border-color:var(--hair)}
+.batch-stops li{border-bottom-color:var(--hair)!important}
+.settle-success{background:var(--accent-soft)}
+.settle-success p{color:var(--fg)}
+.auth-result>.icon{background:var(--accent-soft);color:var(--accent)}
+.timeline-item{color:var(--fg)}
+.credit-progress{background:var(--panel-3)}
+.credit-progress i{background:var(--accent)}
+
+/* ---------- 消息：X 的通知列表 ---------- */
+.notification{background:transparent!important;border:0;border-bottom:1px solid var(--hair)!important;border-radius:0!important}
+.notification:hover{background:var(--bg-2)!important}
+.notification h3{color:var(--fg)}
+.notification .category-icon{background:var(--panel-2);border:0}
+
+/* ---------- 钱包 ---------- */
+.wallet-balance{background:linear-gradient(160deg,#25222f 0%,#1c1e23 60%)!important;border:1px solid var(--hair-2);color:var(--fg)}
+.wallet-balance>strong{color:var(--fg)}
+.wallet-balance>div{border-top-color:var(--hair-2)}
+.wallet-balance>div b{color:var(--fg)}
+.wallet-stats strong{color:var(--fg)}
+.wallet-record{border-bottom:1px solid var(--hair)!important;background:transparent!important}
+.wallet-record b{color:var(--fg)}
+
+/* ---------- 我的 ---------- */
+.profile-stat b{color:var(--fg)}
+.menu-item{color:var(--fg)}
+.menu-item .icon{color:var(--fg-2)}
+.menu-item+.menu-item{border-top-color:var(--hair)}
+
+/* ======================================================
+   地图：深色石板，街区纹理，暗路网，紫色路线与地图点
+   ====================================================== */
+.campus-map{background:#1d2026!important;border:1px solid var(--hair)!important;border-radius:var(--r-panel)!important;box-shadow:inset 0 0 80px #00000059}
+.campus-map .m-bg{fill:#1d2026}
+.campus-map .m-blocks{fill:url(#m-blocks)}
+.campus-map .m-block{fill:#24272e}
+.campus-map .m-block.alt{fill:#272a31}
+.campus-map .m-green{fill:#20262a}
+.campus-map .m-road-edge{stroke:#17191d;stroke-width:15}
+.campus-map .m-road{stroke:#363a43;stroke-width:9}
+.campus-map .m-route-halo{stroke:var(--accent);stroke-width:16;opacity:.16}
+.campus-map .m-route{stroke:var(--accent);stroke-width:4.5;filter:drop-shadow(0 0 6px #9b8cffaa)}
+.campus-map .m-node{fill:#5b606b}
+.campus-map .m-node.custom{fill:var(--fg)}
+.campus-map text.m-label{fill:#8a8f99;stroke:#1d2026;font-weight:500}
+.campus-map text.m-label.strong{fill:var(--fg);font-weight:600}
+.campus-map .m-meta{fill:#5b6069}
+.campus-map .m-north path{fill:var(--fg-2)}
+.campus-map .m-north text{fill:var(--fg-2)}
+/* 需求聚集点：紫色地图钉 */
+.campus-map .m-hub,.market-map-section .campus-map .m-hub{fill:var(--accent)!important;stroke:#1d2026!important;stroke-width:4px!important;filter:drop-shadow(0 4px 10px #0009)}
+.campus-map .m-hub.active,.market-map-section .campus-map .m-hub.active{fill:var(--fg)!important;stroke:var(--accent)!important;stroke-width:4px!important}
+.campus-map .m-hub-text,.market-map-section .campus-map .m-hub-text{fill:#fff!important}
+.campus-map .m-hub-text.active,.market-map-section .campus-map .m-hub-text.active{fill:var(--on-light)!important}
+/* 取 / 送 */
+.campus-map .m-tile{stroke:none}
+.campus-map .m-tile.start{fill:var(--fg)}
+.campus-map .m-tile.end{fill:var(--accent)}
+.campus-map .m-tile-text.start{fill:var(--on-light)}
+.campus-map .m-tile-text.end{fill:#fff}
+.campus-map .m-badge{fill:var(--fg)}
+.campus-map .m-badge-text{fill:var(--on-light)}
+/* 正在移动的同学 / 我的位置 */
+.campus-map .m-pin-ring,.market-map-section .campus-map .m-pin-ring{fill:var(--accent)!important;opacity:.22}
+.campus-map .m-pin-dot,.market-map-section .campus-map .m-pin-dot{fill:var(--accent)!important;stroke:#fff!important;stroke-width:3px!important}
+.campus-map .m-pin-letter{fill:#fff}
+.campus-map .m-pin path{stroke:var(--fg-3)!important}
+.campus-map .m-me{fill:var(--fg)}
+.map-caption{background:#111215cc!important;color:var(--fg-3)!important;border-radius:999px!important;padding:3px 10px!important;backdrop-filter:blur(6px)}
+.map-tools button{border-radius:12px!important;box-shadow:0 6px 20px #0006!important;background:#23262ce6!important;backdrop-filter:blur(8px)}
+.map-legend i{background:var(--accent)}
+.map-legend,.market-map-note{color:var(--fg-3)}
+.red-dot{background:var(--accent)}
+
+/* ---------- 桌面 ---------- */
+@media (min-width:701px){
+  .page{padding-top:28px}
+}
+.market-map-section .campus-map{height:auto!important;aspect-ratio:600/420;max-height:none}
+.market-map-section .campus-map>svg{height:100%}
+.campus-map .m-block{fill:#22252b}
+.campus-map .m-block.alt{fill:#24272d}
+
+/* 需求红点为用户指定的地图语义，独立于主题强调色。 */
+.market-map-section .campus-map .m-hub{fill:var(--danger)!important;stroke:var(--bg)!important;stroke-width:3px!important}
+.market-map-section .campus-map .m-hub.active{fill:var(--danger)!important;stroke:var(--fg)!important;stroke-width:4px!important}
+.market-map-section .campus-map .m-hub-text.active{fill:#fff!important}
+.market-map-note .red-dot{background:var(--danger)}

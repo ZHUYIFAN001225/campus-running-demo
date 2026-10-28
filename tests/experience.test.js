@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createState, migrateState, evolve, visibleTask, money, walletSummary } from '../lib/model.js';
 import { SPOTS, shortestPath, matchRoute, pointAlong, customPoint, pathThrough, mapMarkup, spotKey } from '../lib/campus.js';
-import { alongTasks, trackingSnapshot } from '../lib/experience.js';
+import { alongTasks, trackingSnapshot, stepLabel } from '../lib/experience.js';
 const now=Date.now(),step=(s,c,p={})=>evolve(s,c,p,now),as=(s,actor)=>step(s,'switch',{actor});
 function picked(){let s=as(createState(now),'zhou');s=step(s,'accept',{id:'north-parcel',from:'north'});s=step(s,'start',{id:'north-parcel'});return step(s,'pickup',{id:'north-parcel'});}
 test('顺路计算：沿原路0绕行；反向不伪装完全顺路；距离守恒',()=>{
@@ -56,7 +56,7 @@ test('配送位置演示不替用户改变任务或采购/结算状态',()=>{
 test('升级保留已有用户、任务金额及取件状态，不把当面交接静默改为放置',()=>{
   let old=createState(now);delete old.schemaVersion;old.tasks=old.tasks.filter(t=>!t.id.startsWith('north-'));old.tasks[0].reward=123;
   Object.values(old.users).forEach(u=>delete u.runnerEnabled);old.tasks.forEach(t=>{delete t.handoff;delete t.dropConsent;delete t.pickupSpot;delete t.dropoffSpot;});
-  const next=migrateState(old,now);assert.equal(next.tasks[0].reward,123);assert.equal(next.tasks[0].handoff,'meet');assert.equal(next.tasks[0].dropConsent,false);assert.equal(next.users.visitor.runnerEnabled,false);assert.equal(next.schemaVersion,3);assert.equal(migrateState(next,now),next);
+  const next=migrateState(old,now);assert.equal(next.tasks[0].reward,123);assert.equal(next.tasks[0].handoff,'meet');assert.equal(next.tasks[0].dropConsent,false);assert.equal(next.users.visitor.runnerEnabled,false);assert.equal(next.schemaVersion,4);assert.equal(migrateState(next,now),next);
 });
 test('采购待确认时状态说明真实，取消待处理时位置演示暂停',()=>{
   let s=as(createState(now),'zhou');s=step(s,'accept',{id:'lunch'});s=step(s,'start',{id:'lunch'});s=step(s,'quote',{id:'lunch',item:'鸡腿饭',amount:'26'});
@@ -103,4 +103,24 @@ test('钱包：提交送达仍待结算，确认后收款仅记一次，代买�
   s=step(as(s,'lin'),'complete',{id:'north-parcel'});w=walletSummary(s,'zhou');assert.equal(w.total,200);assert.equal(w.income,200);assert.equal(w.reimbursement,0);assert.equal(w.pendingReward,0);
   const t=s.tasks.find(t=>t.id==='north-parcel');s.tasks.push({...t,id:'bought',buy:true,reward:500,settlement:{expense:2600,runnerPayout:3100,refund:400,at:now}});
   w=walletSummary(s,'zhou');assert.equal(w.total,3300);assert.equal(w.income,700);assert.equal(w.reimbursement,2600);assert.equal(w.total,w.income+w.reimbursement);assert.equal(walletSummary(s,'visitor').total,0);
+});
+
+test('显式载入南门经设计楼到图书馆示例：有可选任务、不重复、不重置旧记录',()=>{
+  const original=as(createState(now),'zhou'),deadline=original.tasks[0].deadline,s=step(original,'routeExamples'),rows=alongTasks(s,{from:'south',via:'design',to:'library',detour:200,category:'all',query:''});
+  const samples=rows.filter(r=>r.task.demoScenario==='south-library');assert.equal(samples.length,3);assert.ok(samples.every(r=>r.task.owner!==s.actor));assert.equal(samples.find(r=>r.task.demoExample==='design').match.extra,0);assert.ok(samples.some(r=>r.task.pickupPoint));
+  assert.equal(s.tasks.find(t=>t.id===original.tasks[0].id).deadline,deadline);assert.equal(step(s,'routeExamples').tasks.length,s.tasks.length);assert.equal(original.tasks.filter(t=>t.demoScenario==='south-library').length,0);
+});
+test('钱包：代买已垫付未结算时，垫付待返还单列；接单者看到的是等待对方确认',()=>{
+  let s=as(createState(now),'zhou');
+  s=step(s,'accept',{id:'north-coffee',from:'north',depart:true});
+  s=step(s,'quote',{id:'north-coffee',amount:'22',item:'热拿铁 × 1'});
+  s=step(as(s,'lin'),'approveQuote',{id:'north-coffee'});
+  s=step(as(s,'zhou'),'buy',{id:'north-coffee',amount:'20',receipt:'虚构小票'});
+  s=step(s,'deliver',{id:'north-coffee',note:'二号楼下当面交接'});
+  let w=walletSummary(s,'zhou');assert.equal(w.pendingReward,200);assert.equal(w.pendingExpense,2000);assert.equal(w.total,400);
+  const t=s.tasks.find(t=>t.id==='north-coffee');
+  assert.match(stepLabel(t,'zhou'),/等待发布者确认/);assert.match(stepLabel(t,'lin'),/待你确认/);
+  s=step(as(s,'lin'),'complete',{id:'north-coffee'});w=walletSummary(s,'zhou');
+  assert.equal(w.pendingExpense,0);assert.equal(w.total,400+2200);assert.equal(w.reimbursement,2000);
+  assert.equal(s.tasks.find(t=>t.id==='north-coffee').settlement.refund,2700-2200);
 });

@@ -1,0 +1,237 @@
+/*
+  同路 · 磨砂玻璃层（最后加载）
+  参考：磨砂半透明面板 + 极简黑底 + 淡紫胶囊主按钮 + 悬浮胶囊导航 + 转盘式选择。
+  原则：玻璃只做质感，不牺牲阅读——每块玻璃下都垫一层深色，文字对比度保持在 AA 以上。
+*/
+:root{
+  --lav:#cdb9ff;--lav-2:#b49dff;--lav-ink:#17121f;
+  --glass:rgba(28,28,34,.62);--glass-2:rgba(40,40,48,.6);--glass-hi:rgba(255,255,255,.07);
+  --glass-line:rgba(255,255,255,.09);--glass-line-2:rgba(255,255,255,.14);
+  --blur:saturate(150%) blur(26px);
+  --accent:var(--lav);--accent-2:var(--lav-2);--accent-soft:rgba(205,185,255,.14);
+  --moss:var(--lav);--moss-ink:var(--lav);--moss-tint:var(--accent-soft);
+  --r-sheet:30px;--r-panel:26px;--r-card:22px;
+  --bg:#0c0c0f;
+}
+html,body{background:#0c0c0f}
+/* 背景：几团很淡的模糊光，给玻璃一点可透的东西；固定不随滚动 */
+body::before{content:"";position:fixed;inset:-20vmax;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(38vmax 30vmax at 18% 12%,rgba(150,120,255,.20),transparent 70%),
+    radial-gradient(34vmax 28vmax at 88% 38%,rgba(255,110,140,.10),transparent 70%),
+    radial-gradient(40vmax 34vmax at 40% 96%,rgba(120,150,255,.10),transparent 70%);
+  filter:blur(30px)}
+#app,.main-wrap,.page{background:transparent!important}
+
+/* ---------- 玻璃面板 ---------- */
+.request-prompt,.route-planner,.route-plan-summary,.optional-route,.quick-publish,.wallet-stats section,.wallet-explain,.profile-hero,.profile-stats,.menu-card,.empty,.market-empty,.auth-banner,.qualification-nudge,.rail-card,.search-box,.actor-option,.route-example,
+.market-task,.route-task-card,.task-card,.pending-row,.current-task,.runner-active,.wallet-balance,.campus-map,.gate-compare button,.market-location>button,.route-optional{
+  background:var(--glass)!important;-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
+  border:1px solid var(--glass-line)!important;box-shadow:inset 0 1px 0 var(--glass-hi),0 20px 50px -30px rgba(0,0,0,.8)!important}
+.request-prompt,.route-planner,.route-plan-summary,.optional-route,.quick-publish,.wallet-explain,.profile-hero,.profile-stats,.menu-card,.wallet-balance,.campus-map{border-radius:var(--r-panel)!important}
+.market-task,.route-task-card,.task-card,.pending-row,.current-task,.runner-active,.wallet-stats section,.actor-option,.empty,.market-empty{border-radius:var(--r-card)!important}
+.gate-compare button,.market-location>button,.route-optional{border-radius:999px!important}
+.market-task:hover,.route-task-card:hover,.task-card:hover,.pending-row:hover{background:var(--glass-2)!important;border-color:var(--glass-line-2)!important}
+.market-task.chosen{border-color:var(--lav)!important;box-shadow:inset 0 0 0 1px var(--lav),0 20px 50px -30px #000!important}
+.current-task{box-shadow:inset 3px 0 0 var(--lav),inset 0 1px 0 var(--glass-hi)!important}
+.wallet-balance{background:linear-gradient(150deg,rgba(205,185,255,.16),rgba(28,28,34,.6) 55%)!important}
+/* 输入框：玻璃上的凹槽 */
+.field input,.field select,.field textarea,input[type=text],input[type=number],input[type=datetime-local],textarea,select,.optional-route-fields select,.detour-inline select{
+  background:rgba(255,255,255,.05)!important;border:1px solid var(--glass-line)!important;border-radius:16px!important;color:var(--fg)!important}
+select{cursor:pointer}
+
+/* ---------- 顶栏与侧栏：透明玻璃 ---------- */
+.topbar{background:rgba(12,12,15,.55)!important;-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-bottom:1px solid var(--glass-line)!important}
+.sidebar{background:rgba(12,12,15,.6)!important;-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-right:1px solid var(--glass-line)!important}
+.id-chip{background:var(--glass)!important;-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--glass-line)!important}
+.nav-link.active{background:var(--glass)!important;border:1px solid var(--glass-line)}
+
+/* ---------- 按钮：淡紫胶囊为主 ---------- */
+.btn.primary{background:var(--lav)!important;color:var(--lav-ink)!important;border-color:var(--lav)!important;box-shadow:0 10px 30px -12px rgba(205,185,255,.55)}
+.btn.primary:hover{background:#d9caff!important}
+.btn.primary .icon{color:var(--lav-ink)!important}
+.btn.secondary,.btn.ghost{background:rgba(255,255,255,.05)!important;border:1px solid var(--glass-line-2)!important;-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur)}
+.category.active,.status-filter.active,.hub-buttons button.selected,.scope-switch .selected,.scope-switch button.selected,.scope-switch button[aria-pressed="true"],
+.market-filter .selected,.map-pick-bar .selected,.quick-time .selected,.quick-price .selected,.auth-step.active b{background:var(--lav)!important;color:var(--lav-ink)!important;border-color:var(--lav)!important}
+.status-filter,.hub-buttons button,.category,.market-filter button,.map-pick-bar button,.quick-time button,.quick-price button,.auth-mini-actions button{background:rgba(255,255,255,.04)!important;border:1px solid var(--glass-line)!important}
+.market-task-actions button.selected{background:var(--lav)!important;color:var(--lav-ink)!important}
+.carry-tray{background:rgba(205,185,255,.92)!important;color:var(--lav-ink)!important;-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-radius:999px!important;padding:12px 12px 12px 22px!important}
+.carry-tray b{color:var(--lav-ink)!important}
+.carry-tray span{color:#4b4260!important}
+.carry-tray .btn{background:var(--lav-ink)!important;color:#fff!important;border-color:var(--lav-ink)!important;box-shadow:none}
+.mode-switch button.selected:after{background:var(--lav)}
+
+/* ---------- 底部导航：悬浮玻璃胶囊 ---------- */
+@media (max-width:700px){
+  .bottom-nav{left:50%!important;right:auto!important;bottom:calc(14px + env(safe-area-inset-bottom))!important;transform:translateX(-50%);width:min(340px,calc(100% - 32px));
+    height:64px;padding:0 10px;border-radius:999px;background:rgba(24,24,30,.72)!important;-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
+    border:1px solid var(--glass-line-2)!important;box-shadow:0 20px 50px -10px rgba(0,0,0,.8),inset 0 1px 0 var(--glass-hi);align-items:center}
+  .bottom-item{height:48px;border-radius:999px;display:grid;place-items:center;position:relative;color:#9a9ca5}
+  .bottom-item>span:not(.count-dot){position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .bottom-item .icon{width:22px;height:22px}
+  .bottom-item.active{color:var(--lav-ink)}
+  .bottom-item.active:before{content:"";position:absolute;width:48px;height:48px;border-radius:50%;background:var(--lav);box-shadow:0 0 24px rgba(205,185,255,.5);z-index:-1}
+  .bottom-item .count-dot{position:absolute;top:6px;right:calc(50% - 18px)}
+  .page{padding-bottom:calc(110px + env(safe-area-inset-bottom))!important}
+}
+
+/* ---------- 弹层：玻璃抽屉 ---------- */
+dialog,dialog#modal,dialog.place-picker{background:rgba(22,22,28,.82)!important;-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--glass-line-2)!important}
+.modal-head{background:transparent!important}
+dialog::backdrop,dialog#modal::backdrop,dialog.place-picker::backdrop{background:rgba(5,5,8,.55)!important;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.summary-box,.money-table,.route-preview-metrics span,.handoff-brief,.delivery-proof,.help-item,.cert-sample,.bubble{background:rgba(255,255,255,.05)!important;border-radius:18px}
+.notice{background:rgba(255,255,255,.05);border-radius:16px;border-left:0}
+
+/* ---------- 地图：玻璃浮层工具 ---------- */
+.campus-map{background:#17181d!important}
+.campus-map .m-bg{fill:#17181d}
+.campus-map .m-block{fill:#1d1f25}
+.campus-map .m-block.alt{fill:#1f2128}
+.campus-map .m-road{stroke:#2f323a}
+.campus-map .m-road-edge{stroke:#121318}
+.campus-map .m-route{stroke:var(--lav);filter:drop-shadow(0 0 7px rgba(205,185,255,.7))}
+.campus-map .m-route-halo{stroke:var(--lav)}
+.campus-map .m-tile.end{fill:var(--lav)}
+.campus-map .m-tile-text.end{fill:var(--lav-ink)}
+.campus-map .m-pin-ring{fill:var(--lav)!important}
+.campus-map .m-pin-dot{fill:var(--lav)!important}
+.campus-map .m-pin-letter{fill:var(--lav-ink)}
+.map-tools button,.map-caption{background:rgba(24,24,30,.6)!important;-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--glass-line-2)!important}
+.map-legend i{background:var(--lav)}
+
+/* ======================================================
+   转盘式选择（lib/wheel.js）
+   ====================================================== */
+.wheel-sheet{position:fixed;inset:auto 0 0 0;margin:0 auto;width:min(520px,100%);max-width:100%;padding:18px 20px calc(20px + env(safe-area-inset-bottom));
+  border-radius:30px 30px 0 0!important;background:rgba(18,18,23,.86)!important;-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
+  border:1px solid var(--glass-line-2)!important;border-bottom:0!important;color:var(--fg);box-shadow:0 -30px 80px -20px #000}
+.wheel-sheet[open]{animation:wheel-up .28s cubic-bezier(.2,.8,.2,1)}
+@keyframes wheel-up{from{transform:translateY(30px);opacity:0}to{transform:none;opacity:1}}
+.wheel-sheet::backdrop{background:rgba(5,5,8,.5);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.wheel-head{display:flex;align-items:center;justify-content:space-between;margin:4px 4px 6px}
+.wheel-head h2{font-size:22px;font-weight:800;letter-spacing:-.01em;margin:0}
+.wheel-close{color:var(--fg-3);font-size:15px;padding:10px 4px}
+.wheel-stage{position:relative;height:336px;overflow:hidden;
+  -webkit-mask-image:linear-gradient(transparent,#000 22%,#000 78%,transparent);mask-image:linear-gradient(transparent,#000 22%,#000 78%,transparent)}
+.wheel-list{list-style:none;margin:0;padding:140px 70px 140px 0;height:100%;overflow-y:auto;scroll-snap-type:y mandatory;scrollbar-width:none;outline:none;overscroll-behavior:contain}
+.wheel-list::-webkit-scrollbar{display:none}
+.wheel-list li{height:56px;display:flex;align-items:center;justify-content:flex-end;scroll-snap-align:center;cursor:pointer;transform-origin:right center;will-change:transform,opacity}
+.wheel-list li span{display:inline-flex;align-items:center;min-height:44px;padding:0 20px;border-radius:999px;font-size:17px;font-weight:600;color:var(--fg-2);white-space:nowrap;transition:background .2s,color .2s,box-shadow .2s}
+.wheel-list li.on span{background:var(--lav);color:var(--lav-ink);font-size:18px;box-shadow:0 0 34px rgba(205,185,255,.45)}
+.wheel-list li.off span{color:var(--fg-4);text-decoration:line-through}
+.wheel-arc{position:absolute;right:0;top:-32px;height:400px;width:60px;pointer-events:none}
+.wheel-arc path{fill:none;stroke:rgba(205,185,255,.35);stroke-width:1.2}
+.wheel-knob{position:absolute;right:4px;top:50%;width:20px;height:8px;margin-top:-4px;border-radius:8px;background:var(--lav);box-shadow:0 0 14px rgba(205,185,255,.8);pointer-events:none}
+.wheel-confirm{display:block;width:100%;min-height:58px;margin-top:10px;border-radius:999px;background:var(--lav);color:var(--lav-ink);font-size:17px;font-weight:700;box-shadow:0 12px 34px -12px rgba(205,185,255,.6)}
+.wheel-confirm:hover{background:#d9caff}
+
+@media (prefers-reduced-motion:reduce){.wheel-sheet[open]{animation:none}.wheel-list{scroll-behavior:auto}}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .request-prompt,.market-task,.campus-map,.wheel-sheet,dialog,.bottom-nav,.topbar{background:#1b1b21!important}
+}
+@media (min-width:701px){.market-map-section .campus-map{aspect-ratio:auto!important;height:440px!important}}
+
+/* =====================================================================
+   全站统一（2026-10-28）：glass.css 现为最后加载的视觉层。
+   原则：地图优先；地图上方只留“标题+位置 / 动态一行 / 范围与路线 / 两种地图模式”；
+   最小字号 12px；按钮统一胶囊 40–48px；卡片统一 22px 圆角与 16px 内距。
+   ===================================================================== */
+:root{--fs-xs:12px;--fs-s:13px;--fs-m:15px;--fs-l:17px}
+.eyebrow,.market-location .eyebrow{display:none}
+
+/* 首次访问：演示身份入口 */
+.demo-start{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px;margin:0 0 16px;padding:12px 14px;border-radius:var(--r-card);
+  background:linear-gradient(120deg,rgba(205,185,255,.16),rgba(28,28,34,.55));border:1px solid rgba(205,185,255,.28);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur)}
+.demo-start p{margin:0;font-size:var(--fs-s);color:var(--fg-2);line-height:1.6}
+.demo-start p b{color:var(--fg);margin-right:4px}
+.demo-start>div{display:flex;gap:8px;flex-wrap:wrap}
+.demo-start button{min-height:40px;padding:0 16px;border-radius:999px;font-size:var(--fs-s);font-weight:700;background:var(--lav);color:var(--lav-ink)}
+.demo-start button+button{background:rgba(255,255,255,.07);color:var(--fg);border:1px solid var(--glass-line-2)}
+
+/* 顺路接单：地图上方压缩 */
+.market-location{display:flex;flex-direction:row!important;align-items:center!important;justify-content:space-between;gap:10px;margin:0 0 10px}
+.market-location h1{font-size:22px!important;margin:0!important;line-height:1.3}
+.market-location>button{flex:0 0 auto;min-height:38px!important;padding:0 12px!important;font-size:var(--fs-s)!important;width:auto!important}
+.gate-compare{display:none!important}
+.market-live{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px!important;padding:8px 12px!important;border-radius:999px!important;background:rgba(255,255,255,.035)!important}
+.market-live-top{flex:1;min-width:0}
+.market-live-top b{font-size:var(--fs-s)!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.market-live-top em{font-size:var(--fs-xs)!important}
+.market-live-top button{font-size:var(--fs-xs)!important;min-height:32px!important}
+.market-live-bottom{display:none!important}
+.pickup-overview{margin:14px 0 8px!important;font-size:var(--fs-s)!important}
+.pickup-overview>span{font-size:var(--fs-xs)!important}
+.pickup-point-strip button{border-radius:16px!important}
+.pickup-point-strip button>span,.pickup-point-strip small{font-size:var(--fs-xs)!important}
+.market-filter{margin:0 0 10px!important}
+.market-filter button,.route-optional{min-height:40px!important;font-size:var(--fs-s)!important;padding:0 14px!important}
+.map-intent{display:grid!important;grid-template-columns:1fr 1fr;gap:4px;padding:4px;margin:0 0 10px;border-radius:999px;background:rgba(255,255,255,.04);border:1px solid var(--glass-line)}
+.map-intent button{min-height:38px!important;border-radius:999px!important;font-size:var(--fs-s)!important;border:0!important;background:transparent!important;color:var(--fg-2)!important}
+.map-intent button.selected,.map-intent button[aria-pressed="true"]{background:var(--fg)!important;color:var(--on-light)!important;font-weight:700}
+.map-location-help{font-size:var(--fs-s)!important}
+.market-map-note{font-size:var(--fs-xs)!important}
+
+/* 需求卡：信息层级统一，紧凑 */
+.market-task-list{gap:10px!important}
+.market-task-info{padding:14px 16px 10px!important}
+.market-task-top>span{font-size:var(--fs-xs)!important}
+.market-task-top strong{font-size:22px!important}
+.market-task-destination{margin:8px 0 2px!important}
+.market-task-destination>span{font-size:var(--fs-xs)!important}
+.market-task-destination b{font-size:var(--fs-l)!important}
+.market-task-item{margin:2px 0 4px;font-size:var(--fs-s);color:var(--fg-2);line-height:1.5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.market-task-info>p{font-size:var(--fs-xs)!important;line-height:1.6!important}
+.market-task-info>small{font-size:var(--fs-xs)!important}
+.market-task-actions{padding:6px 10px 8px!important}
+.market-task-actions button{min-height:36px!important;font-size:var(--fs-xs)!important}
+.urgent-tag,.new-demand-tag{font-size:var(--fs-xs)!important}
+
+/* 通用：小字下限 */
+.field-hint,.seed-note,.tracking-hint,.market-help,.quick-privacy,.map-caption,.pill,.card-tags span,.verified-small,.brand-sub{font-size:var(--fs-xs)!important}
+.btn.small{min-height:38px}
+
+@media (max-width:700px){
+  .demo-start{padding:12px}
+  .demo-start>div{width:100%}
+  .demo-start button{flex:1}
+  .mode-switch{margin-bottom:14px!important}
+  .mode-switch button{padding:4px 2px 10px!important}
+  .mode-switch button span{font-size:17px!important}
+  .mode-switch button small{font-size:var(--fs-xs)!important}
+  .market-location h1{font-size:19px!important}
+  .market-task-list{grid-template-columns:1fr!important}
+}
+@media (min-width:1041px){
+  .market-task-list{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+.pickup-overview{display:none!important}
+.market-filter button,.route-optional,.demo-start button,.map-intent button{white-space:nowrap}
+@media (max-width:360px){
+  .market-location h1{font-size:17px!important}
+  .market-location>button{padding:0 10px!important;font-size:var(--fs-xs)!important}
+  .market-filter>div button{padding:0 10px!important}
+  .route-optional{padding:0 10px!important}
+  .demo-start button{padding:0 10px;font-size:var(--fs-xs)}
+  .demo-start p{font-size:var(--fs-xs)}
+}
+.market-filter{gap:6px!important}
+.market-filter>div{flex:0 0 auto}
+.route-optional{min-width:0;flex:0 1 auto;overflow:hidden;text-overflow:ellipsis}
+.sidebar .brand>svg{width:36px!important;height:36px!important}
+
+/* 桌面：地图在左侧常驻，需求列表在右侧滚动 */
+@media (min-width:1100px){
+  #page-content:has(> .market-map-section){display:grid;grid-template-columns:minmax(0,1.25fr) minmax(340px,1fr);column-gap:24px;align-items:start}
+  #page-content:has(> .market-map-section)>*{grid-column:1/-1}
+  #page-content>.market-map-section{grid-column:1;grid-row:span 6;position:sticky;top:88px;margin:0}
+  #page-content>.market-list-head,#page-content>.market-task-list,#page-content>.market-help,#page-content>.seed-note,#page-content>.active-run-link,#page-content>.carry-tray,#page-content>.optional-route,#page-content>.route-applied{grid-column:2}
+  #page-content>.market-list-head{margin-top:0!important}
+  #page-content>.market-task-list{grid-template-columns:1fr!important}
+  #page-content>.market-map-section .campus-map{height:min(560px,calc(100vh - 260px))!important}
+}
+.brand>svg{flex:none!important}
+.quick-time>span,.quick-price>span,.quick-item>span{font-size:var(--fs-s)!important}
+.quick-time>div,.quick-price>div{display:flex;flex-wrap:wrap;gap:8px}
+.quick-time button,.quick-price button{min-height:40px!important;padding:0 14px!important;font-size:var(--fs-s)!important;min-width:52px}
+.quick-price small{font-size:var(--fs-xs)!important}
+.map-pick-bar button{min-height:42px!important;font-size:var(--fs-s)!important}

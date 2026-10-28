@@ -19,12 +19,13 @@ test('身份：未认证、待审核、过期、非同校均不能接单', () =>
   s = fresh(); s.users.zhou.school = 'other'; assert.throws(() => step(s, 'accept', { id: 'lunch' }), /认证/);
   s = fresh(); s.users.zhou.validUntil = now - 1; assert.throws(() => step(s, 'accept', { id: 'lunch' }), /认证/);
 });
-test('接单：禁止自接、重复接、过期接单和同时多单', () => {
+test('接单：禁止自接、重复接、过期接单和超过四单运输', () => {
   assert.throws(() => step(fresh('lin'), 'accept', { id: 'lunch' }), /自己/);
   let s = fresh(); s.tasks.find(t => t.id === 'lunch').deadline = now - 1;
   assert.throws(() => step(s, 'accept', { id: 'lunch' }), /状态/);
   s = step(fresh(), 'accept', { id: 'lunch' }); assert.throws(() => step(s, 'accept', { id: 'lunch' }), /状态/);
-  assert.throws(() => step(s, 'accept', { id: 'parcel' }), /同时/);
+  s=step(s,'accept',{id:'parcel'});s=step(s,'accept',{id:'north-parcel'});s=step(s,'accept',{id:'north-coffee'});
+  assert.throws(() => step(s, 'accept', { id: 'ongoing' }), /同时/);
   s = step(as(s, 'visitor'), 'auth', { status: 'verified' }); assert.throws(() => step(s, 'accept', { id: 'lunch' }), /状态/);
 });
 test('隐私：旁观者不展示取件码，接单双方可见，取消后关闭', () => {
@@ -138,4 +139,22 @@ test('已付款取件不需要采购报价，正常完成只结算报酬', () =>
   s = step(s, 'deliver', { id: 'parcel', note: '公共交接点当面交接' }); s = step(as(s, 'lin'), 'complete', { id: 'parcel' });
   const t = s.tasks.find(t => t.id === 'parcel'); assert.equal(t.settlement.runnerPayout, 400); assert.equal(t.settlement.refund, 0);
   assert.equal(visibleTask(s, t).sensitive, undefined);
+});
+
+test('禁止内容：否定说明不误判，真正违规仍拒绝；内置打印资料单可正常编辑', async () => {
+  const { prohibitedTerm, createState, evolve, SCHOOL } = await import('../lib/model.js');
+  assert.equal(prohibitedTerm('已打印装订好，不涉及代写或代交作业。'), null);
+  assert.equal(prohibitedTerm('包裹里没有烟酒，也不含危险品'), null);
+  assert.equal(prohibitedTerm('帮我代写一份作业'), '代写');
+  assert.equal(prohibitedTerm('不涉及代写，但请帮我代考'), '代考');
+  assert.equal(prohibitedTerm('不是代考，是帮忙代刷考勤'), '代刷');
+  assert.equal(prohibitedTerm('可以代写吗'), '代写');
+  assert.equal(prohibitedTerm('明天不在宿舍帮我代写'), '代写');
+  assert.equal(prohibitedTerm('不用帮我代考'), '代考');
+  const now = Date.now();
+  let s = evolve(createState(now), 'switch', { actor: 'zhou' }, now);
+  const t = s.tasks.find(x => x.id === 'print');
+  s = evolve(s, 'edit', { id: 'print', category: t.category, title: t.title, description: t.description, item: t.item, pickup: t.pickup, dropoff: t.dropoff, reward: '4', deadline: now + 3600000 }, now);
+  assert.equal(s.tasks.find(x => x.id === 'print').reward, 400);
+  assert.throws(() => evolve(s, 'edit', { id: 'print', category: t.category, title: '帮忙代写作业', description: '急', item: t.item, pickup: t.pickup, dropoff: t.dropoff, reward: '4', deadline: now + 3600000 }, now), /代写/);
 });

@@ -6,6 +6,6 @@
   "scripts": {
     "dev": "node scripts/serve.mjs",
     "test": "node --test tests/*.test.js",
-    "check": "node --check app.js && node --check lib/model.js && node --check lib/campus.js && node --check lib/experience.js"
+    "check": "node --check app.js && node --check lib/model.js && node --check lib/campus.js && node --check lib/experience.js && node --check lib/planning.js && node --check lib/discovery.js && node --check lib/map-controls.js && node --check lib/discovery-data.js && node --check lib/map-clusters.js && node --check lib/delivery-estimate.js && node --check lib/chat-images.js && node --check lib/state-sync.js && node --check lib/market-data.js && node --check lib/market-live.js && node --check lib/wheel.js"
   }
 }
